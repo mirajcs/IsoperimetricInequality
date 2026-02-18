@@ -34,7 +34,7 @@ unfold fourierSeries
 ring
 
 -- simplifying the expansion of square term
-lemma expand_sqare (x : ℝ)
+lemma expand_square (x : ℝ)
     (hc : Summable fun n : ℕ+ => a n * cos (n * x))
     (hs : Summable fun n : ℕ+ => b n * sin (n * x)) :
     (∑' n : ℕ+, (a n * cos (n * x) + b n * sin (n * x)))^2 =
@@ -89,6 +89,31 @@ lemma expand_cos_sq (x : ℝ)
   ring
 
 
+-- Fourier series square fully expanded (step by step)
+theorem fourier_series_sq_expanded (x : ℝ)
+    (hc : Summable fun n : ℕ+ => a n * cos (n * x))
+    (hs : Summable fun n : ℕ+ => b n * sin (n * x))
+    (hprod_cos : Summable fun z : ℕ+ × ℕ+ =>
+      (a z.1 * cos (z.1 * x)) * (a z.2 * cos (z.2 * x)))
+    (hinner_cos : ∀ n : ℕ+, Summable fun m : ℕ+ =>
+      (a n * cos (n * x)) * (a m * cos (m * x)))
+    (hprod_sin : Summable fun z : ℕ+ × ℕ+ =>
+      (b z.1 * sin (z.1 * x)) * (b z.2 * sin (z.2 * x)))
+    (hinner_sin : ∀ n : ℕ+, Summable fun m : ℕ+ =>
+      (b n * sin (n * x)) * (b m * sin (m * x))) :
+    (fourierSeries a b x)^2 = (a 0)^2 / 4 +
+    a 0 * (∑' n : ℕ+, (a n * cos (n * x) + b n * sin (n * x))) +
+    ((∑' n : ℕ+, ∑' m : ℕ+, a n * a m * cos (n * x) * cos (m * x)) +
+    2 * (∑' n : ℕ+, a n * cos (n * x)) * (∑' n : ℕ+, b n * sin (n * x)) +
+    (∑' n : ℕ+, ∑' m : ℕ+, b n * b m * sin (n * x) * sin (m * x))) := by
+  -- Step 1: Expand (a₀/2 + S)² into a₀²/4 + a₀·S + S²
+  rw [fourierSeries_sq]
+  -- Step 2: Expand S² into C² + 2·C·S_sin + S_sin²
+  rw [expand_square a b x hc hs]
+  -- Step 3: Expand C² into double sum
+  rw [expand_cos_sq a x hc hprod_cos hinner_cos]
+  -- Step 4: Expand S_sin² into double sum
+  rw [expand_sin_sq b x hs hprod_sin hinner_sin]
 
 
 
