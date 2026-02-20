@@ -3,6 +3,9 @@ import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Topology.Algebra.InfiniteSum.Basic
 import Mathlib.Topology.Algebra.InfiniteSum.Ring
 import Mathlib.Topology.Algebra.InfiniteSum.Constructions
+import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
+import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
+import Mathlib.MeasureTheory.Integral.DominatedConvergence
 
 open Real
 open scoped BigOperators Topology
@@ -22,15 +25,15 @@ def fourierSum (x : ℝ) : ℝ :=
 
 -- f(x) = a₀/2 + S(x) where is S is the sum
 lemma fourierSeries_eq (x : ℝ) :
-  fourierSeries a b x = (1/2) * a 0 + fourierSum a b x := by rfl 
+  fourierSeries a b x = (1/2) * a 0 + fourierSum a b x := by rfl
 
--- The expansion of [f(x)]² 
-lemma fourierSeries_sq (x : ℝ) :  
-  --(hsum : Summable fun n : ℕ+ => (a n * cos (n * x) + b n * sin (n * x))) : 
-  (fourierSeries a b x)^2 = (a 0)^2 / 4 + 
-  a 0 * (∑' n : ℕ+ , (a n * cos (n * x) + b n * sin (n * x))) + 
-  (∑' n : ℕ+ , (a n * cos (n * x) + b n * sin (n * x)))^2 := by 
-unfold fourierSeries 
+-- The expansion of [f(x)]²
+lemma fourierSeries_sq (x : ℝ) :
+  --(hsum : Summable fun n : ℕ+ => (a n * cos (n * x) + b n * sin (n * x))) :
+  (fourierSeries a b x)^2 = (a 0)^2 / 4 +
+  a 0 * (∑' n : ℕ+ , (a n * cos (n * x) + b n * sin (n * x))) +
+  (∑' n : ℕ+ , (a n * cos (n * x) + b n * sin (n * x)))^2 := by
+unfold fourierSeries
 ring
 
 -- simplifying the expansion of square term
@@ -114,6 +117,117 @@ theorem fourier_series_sq_expanded (x : ℝ)
   rw [expand_cos_sq a x hc hprod_cos hinner_cos]
   -- Step 4: Expand S_sin² into double sum
   rw [expand_sin_sq b x hs hprod_sin hinner_sin]
+
+/--
+Taking the integration
+-/
+-- Integration of the constant term
+lemma integration_of_const :
+    ∫ _x in (-π)..π, (1 / 4) * (a 0)^2 = (1 / 2) * (a 0)^2 * π := by
+  rw [intervalIntegral.integral_const]
+  simp [smul_eq_mul]
+  ring
+
+-- ∫_{-π}^{π} cos(n·x) dx = 0 for any n : ℕ+
+private lemma integral_cos_pnat (n : ℕ+) :
+    ∫ x in (-π)..π, cos ((n : ℝ) * x) = 0 := by
+  have hn : (n : ℝ) ≠ 0 := by exact_mod_cast n.pos.ne'
+  have h_sin : sin ((n : ℝ) * π) = 0 := by exact_mod_cast sin_nat_mul_pi (n : ℕ)
+  have key : (n : ℝ) * ∫ x in (-π)..π, cos ((n : ℝ) * x) = 0 := by
+    rw [intervalIntegral.mul_integral_comp_mul_left, integral_cos]
+    simp [mul_neg, sin_neg, h_sin]
+  exact (mul_eq_zero.mp key).resolve_left hn
+
+-- ∫_{-π}^{π} sin(n·x) dx = 0 for any n : ℕ+
+private lemma integral_sin_pnat (n : ℕ+) :
+    ∫ x in (-π)..π, sin ((n : ℝ) * x) = 0 := by
+  have hn : (n : ℝ) ≠ 0 := by exact_mod_cast n.pos.ne'
+  have key : (n : ℝ) * ∫ x in (-π)..π, sin ((n : ℝ) * x) = 0 := by
+    rw [intervalIntegral.mul_integral_comp_mul_left, integral_sin]
+    simp [mul_neg, cos_neg]
+  exact (mul_eq_zero.mp key).resolve_left hn
+
+-- ∫_{-π}^{π} (aₙcos(nx) + bₙsin(nx)) dx = 0 for each n : ℕ+ (orthogonality)
+private lemma integral_fourierTerm (n : ℕ+) :
+    ∫ x in (-π)..π, (a n * cos ((n : ℝ) * x) + b n * sin ((n : ℝ) * x)) = 0 := by
+  have hc : Continuous (fun x => a n * cos ((n : ℝ) * x)) :=
+    continuous_const.mul (continuous_cos.comp (continuous_const.mul continuous_id))
+  have hs : Continuous (fun x => b n * sin ((n : ℝ) * x)) :=
+    continuous_const.mul (continuous_sin.comp (continuous_const.mul continuous_id))
+  rw [intervalIntegral.integral_add (hc.intervalIntegrable (-π) π) (hs.intervalIntegrable (-π) π),
+      intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
+      integral_cos_pnat n, integral_sin_pnat n, mul_zero, mul_zero, add_zero]
+
+-- The cross term a₀ · fourierSum integrates to zero over [-π, π]:
+-- ∫_{-π}^{π} a₀ · (∑_{n≥1} aₙcos(nx) + bₙsin(nx)) dx = 0
+lemma integration_of_cos_sin
+    (hF_int : ∀ n : ℕ+, IntervalIntegrable
+      (fun x => a n * cos ((n : ℕ+) * x) + b n * sin ((n : ℕ+) * x))
+      MeasureTheory.volume (-π) π)
+    (hF_sum : Summable (fun n : ℕ+ =>
+      ∫ x in (-π)..π, ‖a n * cos ((n : ℕ+) * x) + b n * sin ((n : ℕ+) * x)‖)) :
+    ∫ x in (-π)..π, a 0 * fourierSum a b x = 0 := by
+  -- Factor out the constant a 0
+  rw [intervalIntegral.integral_const_mul]
+  -- It suffices to show ∫ fourierSum = 0
+  suffices h : ∫ x in (-π)..π, fourierSum a b x = 0 by simp [h]
+  simp only [fourierSum]
+  -- Interchange ∫ and ∑' (by summability of norms via dominated convergence)
+  have hswap : ∫ x in (-π)..π,
+        ∑' n : ℕ+, (a n * cos ((n : ℕ+) * x) + b n * sin ((n : ℕ+) * x)) =
+        ∑' n : ℕ+, ∫ x in (-π)..π,
+          (a n * cos ((n : ℕ+) * x) + b n * sin ((n : ℕ+) * x)) := by
+    have h_le : (-π : ℝ) ≤ π := by linarith [Real.pi_pos]
+    -- Convert interval integrals to restricted integrals over Ioc (-π) π
+    simp_rw [intervalIntegral.integral_of_le h_le]
+    symm
+    -- Apply integral_tsum_of_summable_integral_norm with μ = volume.restrict (Ioc (-π) π)
+    apply MeasureTheory.integral_tsum_of_summable_integral_norm
+    · intro n; exact (hF_int n).1
+    · simp_rw [← intervalIntegral.integral_of_le h_le]; exact hF_sum
+  rw [hswap]
+  -- Each term integrates to zero by orthogonality of trig functions
+  simp_rw [integral_fourierTerm a b, tsum_zero]
+
+-- ∫_(-π) ^π cos (nx) cos (mx) dx = 0 for n ≠ m
+lemma integration_cos_cos_zero (n m : ℕ+) (h : n ≠ m) :
+    ∫ x in (-π)..π, cos (n  * x) * cos (m * x) = 0 := by
+  -- (n-m) ≠ 0 in ℝ
+  have hnm_ne : (n : ℝ) - m ≠ 0 := sub_ne_zero.mpr (by exact_mod_cast h)
+  -- sin((n-m)π) = 0  (integer multiple of π)
+  have hnm_sin : sin (((n : ℝ) - m) * π) = 0 := by
+    rw [sub_mul, sin_sub]
+    have h1 : sin ((n : ℝ) * π) = 0 := by exact_mod_cast sin_nat_mul_pi (n : ℕ)
+    have h2 : sin ((m : ℝ) * π) = 0 := by exact_mod_cast sin_nat_mul_pi (m : ℕ)
+    simp [h1, h2]
+  -- ∫ cos((n-m)x) = 0
+  have int_nm : ∫ x in (-π)..π, cos (((n : ℝ) - m) * x) = 0 := by
+    have key : ((n : ℝ) - m) * ∫ x in (-π)..π, cos (((n : ℝ) - m) * x) = 0 := by
+      rw [intervalIntegral.mul_integral_comp_mul_left, integral_cos]
+      simp [mul_neg, sin_neg, hnm_sin]
+    exact (mul_eq_zero.mp key).resolve_left hnm_ne
+  -- ∫ cos((n+m)x) = 0  (n+m : ℕ+ so use integral_cos_pnat)
+  have int_np : ∫ x in (-π)..π, cos (((n : ℝ) + m) * x) = 0 := by
+    have h_cast : ((n : ℝ) + m) = ((n + m : ℕ+) : ℝ) := by push_cast; ring
+    rw [h_cast]; exact integral_cos_pnat (n + m)
+  -- Product-to-sum: cos(nx)cos(mx) = ½cos((n-m)x) + ½cos((n+m)x)
+  have prod_sum : ∀ x : ℝ, cos ((n : ℝ) * x) * cos ((m : ℝ) * x) =
+      (1/2) * cos (((n : ℝ) - m) * x) + (1/2) * cos (((n : ℝ) + m) * x) := fun x => by
+    have h1 := cos_sub ((n : ℝ) * x) ((m : ℝ) * x)
+    have h2 := cos_add ((n : ℝ) * x) ((m : ℝ) * x)
+    simp only [← sub_mul, ← add_mul] at h1 h2
+    linarith
+  simp_rw [prod_sum]
+  have hc1 : IntervalIntegrable (fun x => (1/2 : ℝ) * cos (((n : ℝ) - m) * x))
+      MeasureTheory.volume (-π) π := by
+    apply Continuous.intervalIntegrable; fun_prop
+  have hc2 : IntervalIntegrable (fun x => (1/2 : ℝ) * cos (((n : ℝ) + m) * x))
+      MeasureTheory.volume (-π) π := by
+    apply Continuous.intervalIntegrable; fun_prop
+  rw [intervalIntegral.integral_add hc1 hc2,
+      intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
+      int_nm, int_np]; simp
+
 
 
 
