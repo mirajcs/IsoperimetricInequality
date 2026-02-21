@@ -228,7 +228,106 @@ lemma integration_cos_cos_zero (n m : ℕ+) (h : n ≠ m) :
       intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
       int_nm, int_np]; simp
 
+-- ∫_(-π) ^π sin (nx) sin (mx) dx = 0 for n ≠ m
+lemma integration_sin_sin_zero (n m : ℕ+) (h : n ≠ m) :
+    ∫ x in (-π)..π, sin (n  * x) * sin (m * x) = 0 := by
+  -- (n-m) ≠ 0 in ℝ
+  have hnm_ne : (n : ℝ) - m ≠ 0 := sub_ne_zero.mpr (by exact_mod_cast h)
+  -- sin((n-m)π) = 0  (integer multiple of π)
+  have hnm_sin : sin (((n : ℝ) - m) * π) = 0 := by
+    rw [sub_mul, sin_sub]
+    have h1 : sin ((n : ℝ) * π) = 0 := by exact_mod_cast sin_nat_mul_pi (n : ℕ)
+    have h2 : sin ((m : ℝ) * π) = 0 := by exact_mod_cast sin_nat_mul_pi (m : ℕ)
+    simp [h1, h2]
+  -- sin((n+m)x) = 0 (integer multiple of π)
+  have hnm1_sin : sin (((n : ℝ) + m) * π) = 0 := by
+    rw [add_mul, sin_add]
+    have h1 : sin ((n : ℝ) * π) = 0 := by exact_mod_cast sin_nat_mul_pi (n : ℕ)
+    have h2 : sin ((m : ℝ) * π) = 0 := by exact_mod_cast sin_nat_mul_pi (m : ℕ)
+    simp [h1, h2]
+  -- ∫ cos((n-m)x) = 0
+  have int_nm : ∫ x in (-π)..π, cos (((n : ℝ) - m) * x) = 0 := by
+    have key : ((n : ℝ) - m) * ∫ x in (-π)..π, cos (((n : ℝ) - m) * x) = 0 := by
+      rw [intervalIntegral.mul_integral_comp_mul_left, integral_cos]
+      simp [mul_neg, sin_neg, hnm_sin]
+    exact (mul_eq_zero.mp key).resolve_left hnm_ne
+  -- ∫ cos((n+m)x) = 0  (n+m : ℕ+ so use integral_cos_pnat)
+  have int_np : ∫ x in (-π)..π, cos (((n : ℝ) + m) * x) = 0 := by
+    have h_cast : ((n : ℝ) + m) = ((n + m : ℕ+) : ℝ) := by push_cast; ring
+    rw [h_cast]; exact integral_cos_pnat (n + m)
+  -- Product-to-sum: sin(nx)sin(mx) = ½cos((n-m)x) - ½cos((n+m)x)
+  have prod_sum : ∀ x : ℝ, sin ((n : ℝ) * x) * sin ((m : ℝ) * x) =
+      (1/2) * cos (((n : ℝ) - m) * x) - (1/2) * cos (((n : ℝ) + m) * x) := fun x => by
+    have h1 := cos_sub ((n : ℝ) * x) ((m : ℝ) * x)
+    have h2 := cos_add ((n : ℝ) * x) ((m : ℝ) * x)
+    simp only [← sub_mul, ← add_mul] at h1 h2
+    linarith
+  simp_rw [prod_sum]
+  have hc1 : IntervalIntegrable (fun x => (1/2 : ℝ) * cos (((n : ℝ) - m) * x))
+      MeasureTheory.volume (-π) π := by
+    apply Continuous.intervalIntegrable; fun_prop
+  have hc2 : IntervalIntegrable (fun x => (1/2 : ℝ) * cos (((n : ℝ) + m) * x))
+      MeasureTheory.volume (-π) π := by
+    apply Continuous.intervalIntegrable; fun_prop
+  rw [intervalIntegral.integral_sub hc1 hc2,
+      intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
+      int_nm, int_np]; simp
 
+--∫ _(-π) ^ π cos (nx)sin (mx) dx = 0
+lemma integration_sin_cos_zero (n m : ℕ+) (h : n ≠ m) :
+    ∫ x in (-π)..π, cos (n * x) * sin (m * x) = 0 := by
+  have hnm_ne : (n : ℝ) - m ≠ 0 := sub_ne_zero.mpr (by exact_mod_cast h)
+  -- ∫ sin((n-m)x) = 0
+  have int_sin_nm : ∫ x in (-π)..π, sin (((n : ℝ) - m) * x) = 0 := by
+    have key : ((n : ℝ) - m) * ∫ x in (-π)..π, sin (((n : ℝ) - m) * x) = 0 := by
+      rw [intervalIntegral.mul_integral_comp_mul_left, integral_sin]
+      simp [mul_neg, cos_neg]
+    exact (mul_eq_zero.mp key).resolve_left hnm_ne
+  -- ∫ sin((n+m)x) = 0
+  have int_sin_np : ∫ x in (-π)..π, sin (((n : ℝ) + m) * x) = 0 := by
+    have h_cast : ((n : ℝ) + m) = ((n + m : ℕ+) : ℝ) := by push_cast; ring
+    rw [h_cast]; exact integral_sin_pnat (n + m)
+  -- Product-to-sum: cos(nx)sin(mx) = ½sin((n+m)x) - ½sin((n-m)x)
+  have prod_sum : ∀ x : ℝ, cos ((n : ℝ) * x) * sin ((m : ℝ) * x) =
+      (1/2) * sin (((n : ℝ) + m) * x) - (1/2) * sin (((n : ℝ) - m) * x) := fun x => by
+    have h1 := sin_add ((n : ℝ) * x) ((m : ℝ) * x)
+    have h2 := sin_sub ((n : ℝ) * x) ((m : ℝ) * x)
+    simp only [← add_mul, ← sub_mul] at h1 h2
+    linarith
+  simp_rw [prod_sum]
+  have hc1 : IntervalIntegrable (fun x => (1/2 : ℝ) * sin (((n : ℝ) + m) * x))
+      MeasureTheory.volume (-π) π := by
+    apply Continuous.intervalIntegrable; fun_prop
+  have hc2 : IntervalIntegrable (fun x => (1/2 : ℝ) * sin (((n : ℝ) - m) * x))
+      MeasureTheory.volume (-π) π := by
+    apply Continuous.intervalIntegrable; fun_prop
+  rw [intervalIntegral.integral_sub hc1 hc2,
+      intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
+      int_sin_np, int_sin_nm]; simp
+
+--∫ _(-π)^π cos(nx)cos(mx) dx = π for n = m
+lemma integration_cos_cos_pi (n m : ℕ+) (h : n = m) :
+    ∫ x in (-π)..π, cos (n * x) * cos (m * x) = π := by
+  subst h
+  -- cos(nx)cos(nx) = ½(1 + cos(2nx))
+  have half_angle : ∀ x : ℝ, cos ((n : ℝ) * x) * cos ((n : ℝ) * x) =
+      1/2 + (1/2) * cos ((2 * (n : ℝ)) * x) := fun x => by
+    have := cos_sq ((n : ℝ) * x)
+    rw [show (n : ℝ) * x * 2 = 2 * (n : ℝ) * x by ring] at this
+    linarith
+  simp_rw [half_angle]
+  -- ∫ cos(2nx) = 0 since 2n : ℕ+
+  have int_cos2n : ∫ x in (-π)..π, (1/2 : ℝ) * cos ((2 * (n : ℝ)) * x) = 0 := by
+    have h_cast : 2 * (n : ℝ) = ((2 * n : ℕ+) : ℝ) := by push_cast; ring
+    rw [intervalIntegral.integral_const_mul, h_cast, integral_cos_pnat]
+    simp
+  have hc1 : IntervalIntegrable (fun _ => (1/2 : ℝ)) MeasureTheory.volume (-π) π :=
+    intervalIntegrable_const
+  have hc2 : IntervalIntegrable (fun x => (1/2 : ℝ) * cos ((2 * (n : ℝ)) * x))
+      MeasureTheory.volume (-π) π := by
+    apply Continuous.intervalIntegrable; fun_prop
+  rw [intervalIntegral.integral_add hc1 hc2, intervalIntegral.integral_const, int_cos2n]
+  simp [Real.pi_pos.le]
 
 
 end
