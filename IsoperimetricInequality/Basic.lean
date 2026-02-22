@@ -309,11 +309,11 @@ lemma integration_sin_cos_zero (n m : ℕ+) (h : n ≠ m) :
 lemma integration_cos_cos_pi (n m : ℕ+) (h : n = m) :
     ∫ x in (-π)..π, cos (n * x) * cos (m * x) = π := by
   subst h
-  -- cos(nx)cos(nx) = ½(1 + cos(2nx))
-  have half_angle : ∀ x : ℝ, cos ((n : ℝ) * x) * cos ((n : ℝ) * x) =
+  -- cos^2(nx) = ½(1 + cos(2nx))
+  have half_angle : ∀ x : ℝ,  cos ((n : ℝ) * x) * cos ((n : ℝ) * x) =
       1/2 + (1/2) * cos ((2 * (n : ℝ)) * x) := fun x => by
-    have := cos_sq ((n : ℝ) * x)
-    rw [show (n : ℝ) * x * 2 = 2 * (n : ℝ) * x by ring] at this
+    have h := cos_sq ((n : ℝ) * x)
+    rw [sq, show 2 * ((n : ℝ) * x) = 2 * (n : ℝ) * x from by ring] at h
     linarith
   simp_rw [half_angle]
   -- ∫ cos(2nx) = 0 since 2n : ℕ+
@@ -327,7 +327,79 @@ lemma integration_cos_cos_pi (n m : ℕ+) (h : n = m) :
       MeasureTheory.volume (-π) π := by
     apply Continuous.intervalIntegrable; fun_prop
   rw [intervalIntegral.integral_add hc1 hc2, intervalIntegral.integral_const, int_cos2n]
-  simp [Real.pi_pos.le]
+  simp only [smul_eq_mul, sub_neg_eq_add, add_zero]
+  linarith
 
+
+--∫ _(-π)^π sin(nx)sin(mx) dx = π for n = m
+lemma integration_sin_sin_pi (n m : ℕ+) (h : n = m) :
+    ∫ x in (-π)..π, sin (n * x) * sin (m * x) = π := by
+  subst h
+  -- sin(nx)sin(nx) = ½(1 - cos(2nx))
+  have half_angle : ∀ x : ℝ, sin ((n : ℝ) * x) * sin ((n : ℝ) * x) =
+      1/2 - (1/2) * cos ((2 * (n : ℝ)) * x) := fun x => by
+    have h1 := sin_sq_add_cos_sq ((n : ℝ) * x)
+    have h2 := cos_sq ((n : ℝ) * x)
+    rw [show 2 * ((n : ℝ) * x) = 2 * (n : ℝ) * x from by ring] at h2
+    rw [← sq]
+    linarith
+  simp_rw [half_angle]
+  -- ∫ cos(2nx) = 0 since 2n : ℕ+
+  have int_cos2n : ∫ x in (-π)..π, (1/2 : ℝ) * cos ((2 * (n : ℝ)) * x) = 0 := by
+    have h_cast : 2 * (n : ℝ) = ((2 * n : ℕ+) : ℝ) := by push_cast; ring
+    rw [intervalIntegral.integral_const_mul, h_cast, integral_cos_pnat]
+    simp
+  have hc1 : IntervalIntegrable (fun _ => (1/2 : ℝ)) MeasureTheory.volume (-π) π :=
+    intervalIntegrable_const
+  have hc2 : IntervalIntegrable (fun x => (1/2 : ℝ) * cos ((2 * (n : ℝ)) * x))
+      MeasureTheory.volume (-π) π := by
+    apply Continuous.intervalIntegrable; fun_prop
+  rw [intervalIntegral.integral_sub hc1 hc2, intervalIntegral.integral_const, int_cos2n]
+  simp only [smul_eq_mul, sub_neg_eq_add, sub_zero]
+  linarith
+
+theorem Parsevals_thm
+    -- Integrability of a₀·S(x) over [-π, π]
+    (hfS_int : IntervalIntegrable (fun x => a 0 * fourierSum a b x)
+      MeasureTheory.volume (-π) π)
+    -- Integrability of S(x)² over [-π, π]
+    (hfSq_int : IntervalIntegrable (fun x => (fourierSum a b x)^2)
+      MeasureTheory.volume (-π) π)
+    -- Each Fourier term is integrable
+    (hF_int : ∀ n : ℕ+, IntervalIntegrable
+      (fun x => a n * cos ((n : ℕ+) * x) + b n * sin ((n : ℕ+) * x))
+      MeasureTheory.volume (-π) π)
+    -- L¹ summability (for integral/sum interchange in cross term)
+    (hF_sum : Summable (fun n : ℕ+ =>
+      ∫ x in (-π)..π, ‖a n * cos ((n : ℕ+) * x) + b n * sin ((n : ℕ+) * x)‖))
+    -- ∫ S(x)² = π · ∑ₙ (aₙ² + bₙ²)  (orthogonality of the Fourier basis)
+    (h_int_sq : ∫ x in (-π)..π, (fourierSum a b x)^2 =
+      π * ∑' n : ℕ+, ((a n)^2 + (b n)^2)) :
+    (1/π) * ∫ x in (-π)..π, (fourierSeries a b x)^2 =
+    (1/2) * (a 0)^2 + ∑' n : ℕ+, ((a n)^2 + (b n)^2) := by
+  -- Step 1: pointwise expand f(x)² = (a₀/2)² + a₀·S(x) + S(x)²
+  have hpt : ∀ x : ℝ, (fourierSeries a b x)^2 =
+      (1/4 : ℝ) * (a 0)^2 + a 0 * fourierSum a b x + (fourierSum a b x)^2 := fun x => by
+    simp only [fourierSeries_eq]; ring
+  simp_rw [hpt]
+  -- Step 2: establish integrability of the sub-expressions
+  have h_const_int : IntervalIntegrable (fun _ : ℝ => (1 / 4 : ℝ) * (a 0) ^ 2)
+      MeasureTheory.volume (-π) π := intervalIntegrable_const
+  have h_sum_int : IntervalIntegrable
+      (fun x => (1 / 4 : ℝ) * (a 0) ^ 2 + a 0 * fourierSum a b x)
+      MeasureTheory.volume (-π) π := h_const_int.add hfS_int
+  -- Step 3: split the integral linearly into three pieces
+  rw [intervalIntegral.integral_add h_sum_int hfSq_int,
+      intervalIntegral.integral_add h_const_int hfS_int]
+  -- Step 3: evaluate each piece
+  --   ∫ (1/4)·a₀²  = (1/2)·a₀²·π   (integration_of_const)
+  --   ∫ a₀·S(x)    = 0              (orthogonality, integration_of_cos_sin)
+  --   ∫ S(x)²      = π·∑ₙ(aₙ²+bₙ²) (h_int_sq)
+  rw [integration_of_const, integration_of_cos_sin a b hF_int hF_sum, h_int_sq]
+  -- Step 4: arithmetic — (1/π)·((1/2)·a₀²·π + 0 + π·∑…) = (1/2)·a₀² + ∑…
+  simp only [add_zero]
+  have hpi : (π : ℝ) ≠ 0 := Real.pi_ne_zero
+  field_simp [hpi]
+  
 
 end
