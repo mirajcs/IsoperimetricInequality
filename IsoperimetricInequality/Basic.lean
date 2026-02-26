@@ -6,9 +6,11 @@ import Mathlib.Topology.Algebra.InfiniteSum.Constructions
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
 import Mathlib.MeasureTheory.Integral.DominatedConvergence
+import Mathlib.Analysis.BoundedVariation
+import Mathlib.Analysis.Normed.Lp.lpSpace
 
 open Real
-open scoped BigOperators Topology
+open scoped BigOperators Topology MeasureTheory Filter 
 
 noncomputable section
 
@@ -19,6 +21,10 @@ variable (a : ℕ → ℝ) (b : ℕ → ℝ)
 def fourierSeries (x : ℝ) : ℝ :=
     (1/2) * a 0 + ∑' n : ℕ+, (a n * cos (n * x) + b n * sin (n * x))
 
+def fourierPartialSum (x : ℝ) (N : ℕ) : ℝ := 
+  (1/2) * ∑ n ∈ Finset.range N, (a n * cos (n * x) + b n * sin (n * x))
+
+
 -- The sum part of fourier series
 def fourierSum (x : ℝ) : ℝ :=
     ∑' n : ℕ+, (a n * cos (n * x) + b n * sin (n * x))
@@ -26,6 +32,7 @@ def fourierSum (x : ℝ) : ℝ :=
 -- f(x) = a₀/2 + S(x) where is S is the sum
 lemma fourierSeries_eq (x : ℝ) :
   fourierSeries a b x = (1/2) * a 0 + fourierSum a b x := by rfl
+
 
 -- The expansion of [f(x)]²
 lemma fourierSeries_sq (x : ℝ) :
@@ -400,6 +407,12 @@ theorem Parsevals_thm
   simp only [add_zero]
   have hpi : (π : ℝ) ≠ 0 := Real.pi_ne_zero
   field_simp [hpi]
-  
+ 
+
+ -- Wirtinger's Inequliity 
+ -- Goals -- ∫ 0 ^ 2π f(x) = 0. 
+ --
+ -- we will prove the equality 
+ 
 
 end
