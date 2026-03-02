@@ -1,0 +1,13 @@
+name = "docbuild"
+reservoir = false
+version = "0.1.0"
+packageDir = "../.lake/packages"
+
+[[require]]
+name = "IsoperimetricInequality"
+path = "../"
+
+[[require]]
+scope = "leanprover"
+name = "doc-gen4"
+rev = "01e143329f2f79abbb8559344e836c221ae84cfd"

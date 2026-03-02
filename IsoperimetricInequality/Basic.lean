@@ -8,33 +8,56 @@ import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
 import Mathlib.MeasureTheory.Integral.DominatedConvergence
 import Mathlib.Analysis.BoundedVariation
 import Mathlib.Analysis.Normed.Lp.lpSpace
+import Mathlib.Analysis.Normed.Group.FunctionSeries
+
+/-!
+# The Isoperimetric Inequality
+
+This file formalises basic properties of classical Fourier series needed on the way to
+the isoperimetric inequality.  In particular we prove:
+
+* **Parseval's theorem** – `Parsevals_thm`
+* 
+
+## Notation
+
+Throughout, `a : ℕ → ℝ` and `b : ℕ → ℝ` are the cosine and sine Fourier coefficients,
+and the series is indexed over `ℕ+` (positive natural numbers).
+-/
 
 open Real
-open scoped BigOperators Topology MeasureTheory Filter 
+open scoped BigOperators Topology MeasureTheory Filter
 
 noncomputable section
 
 -- The Fourier coefficients
 variable (a : ℕ → ℝ) (b : ℕ → ℝ)
 
--- The classical Fourier series as a function of x
+/-- The classical Fourier series as a function of `x`:
+`f(x) = a₀/2 + ∑_{n=1}^∞ (aₙ cos(nx) + bₙ sin(nx))`. -/
 def fourierSeries (x : ℝ) : ℝ :=
     (1/2) * a 0 + ∑' n : ℕ+, (a n * cos (n * x) + b n * sin (n * x))
 
-def fourierPartialSum (x : ℝ) (N : ℕ) : ℝ := 
-  (1/2) * ∑ n ∈ Finset.range N, (a n * cos (n * x) + b n * sin (n * x))
+/-- The `N`-th partial sum of the Fourier series:
+`S_N(x) = a₀/2 + ∑_{n=1}^N (aₙ cos(nx) + bₙ sin(nx))`. -/
+def fourierPartialSum (x : ℝ) (N : ℕ) : ℝ :=
+  (1/2) * a 0 + ∑ n ∈ Finset.range N, (a (n + 1) * cos ((n + 1 : ℝ) * x)
+  + b (n + 1) * sin ((n + 1 : ℝ) * x))
 
 
--- The sum part of fourier series
+/-- The oscillatory sum part of the Fourier series (without the constant term):
+`S(x) = ∑_{n=1}^∞ (aₙ cos(nx) + bₙ sin(nx))`. -/
 def fourierSum (x : ℝ) : ℝ :=
     ∑' n : ℕ+, (a n * cos (n * x) + b n * sin (n * x))
 
--- f(x) = a₀/2 + S(x) where is S is the sum
+/-- The Fourier series decomposes as `f(x) = a₀/2 + S(x)`,
+where `S(x)` is the oscillatory sum part. -/
 lemma fourierSeries_eq (x : ℝ) :
   fourierSeries a b x = (1/2) * a 0 + fourierSum a b x := by rfl
 
 
--- The expansion of [f(x)]²
+/-- Expansion of `(f(x))²` as `(a₀/2)² + a₀·S(x) + S(x)²`,
+where `S(x) = fourierSum a b x`. -/
 lemma fourierSeries_sq (x : ℝ) :
   --(hsum : Summable fun n : ℕ+ => (a n * cos (n * x) + b n * sin (n * x))) :
   (fourierSeries a b x)^2 = (a 0)^2 / 4 +
@@ -43,7 +66,9 @@ lemma fourierSeries_sq (x : ℝ) :
 unfold fourierSeries
 ring
 
--- simplifying the expansion of square term
+/-- Expands `(∑ aₙ cos(nx) + bₙ sin(nx))²` into
+`(∑ aₙ cos)² + 2·(∑ aₙ cos)(∑ bₙ sin) + (∑ bₙ sin)²`
+using linearity of the infinite sum. -/
 lemma expand_square (x : ℝ)
     (hc : Summable fun n : ℕ+ => a n * cos (n * x))
     (hs : Summable fun n : ℕ+ => b n * sin (n * x)) :
@@ -54,8 +79,8 @@ lemma expand_square (x : ℝ)
   rw [hc.tsum_add hs]
   ring
 
--- Expanding the square of the sine sum into a double sum
--- (∑ bₙ sin(nx))² = ∑ₙ ∑ₘ bₙ bₘ sin(nx) sin(mx)
+/-- Expands the square of the sine partial sum into a double sum:
+`(∑ bₙ sin(nx))² = ∑ₙ ∑ₘ bₙ bₘ sin(nx) sin(mx)`. -/
 lemma expand_sin_sq (x : ℝ)
     (hs : Summable fun n : ℕ+ => b n * sin (n * x))
     -- The product family (n,m) ↦ bₙ sin(nx) · bₘ sin(mx) is summable
@@ -76,8 +101,8 @@ lemma expand_sin_sq (x : ℝ)
   congr 1; ext n; congr 1; ext m
   ring
 
--- Expanding the square of the sine sum into a double sum
--- (∑ aₙ cos(nx))² = ∑ₙ ∑ₘ aₙ aₘ cos(nx) cos(mx)
+/-- Expands the square of the cosine partial sum into a double sum:
+`(∑ aₙ cos(nx))² = ∑ₙ ∑ₘ aₙ aₘ cos(nx) cos(mx)`. -/
 lemma expand_cos_sq (x : ℝ)
     (hs1 : Summable fun n : ℕ+ => a n * cos (n * x))
     -- The product family (n,m) ↦ aₙ cos(nx) · aₘ cos(mx) is summable
@@ -99,7 +124,8 @@ lemma expand_cos_sq (x : ℝ)
   ring
 
 
--- Fourier series square fully expanded (step by step)
+/-- Full expansion of `(f(x))²` into a constant term, cross terms, and double sums,
+combining `fourierSeries_sq`, `expand_square`, `expand_cos_sq`, and `expand_sin_sq`. -/
 theorem fourier_series_sq_expanded (x : ℝ)
     (hc : Summable fun n : ℕ+ => a n * cos (n * x))
     (hs : Summable fun n : ℕ+ => b n * sin (n * x))
@@ -125,17 +151,14 @@ theorem fourier_series_sq_expanded (x : ℝ)
   -- Step 4: Expand S_sin² into double sum
   rw [expand_sin_sq b x hs hprod_sin hinner_sin]
 
-/--
-Taking the integration
--/
--- Integration of the constant term
+/-- `∫_{-π}^{π} (1/4) a₀² dx = (1/2) a₀² π`. -/
 lemma integration_of_const :
     ∫ _x in (-π)..π, (1 / 4) * (a 0)^2 = (1 / 2) * (a 0)^2 * π := by
   rw [intervalIntegral.integral_const]
   simp [smul_eq_mul]
   ring
 
--- ∫_{-π}^{π} cos(n·x) dx = 0 for any n : ℕ+
+/-- `∫_{-π}^{π} cos(n·x) dx = 0` for any positive integer `n : ℕ+`. -/
 private lemma integral_cos_pnat (n : ℕ+) :
     ∫ x in (-π)..π, cos ((n : ℝ) * x) = 0 := by
   have hn : (n : ℝ) ≠ 0 := by exact_mod_cast n.pos.ne'
@@ -145,7 +168,7 @@ private lemma integral_cos_pnat (n : ℕ+) :
     simp [mul_neg, sin_neg, h_sin]
   exact (mul_eq_zero.mp key).resolve_left hn
 
--- ∫_{-π}^{π} sin(n·x) dx = 0 for any n : ℕ+
+/-- `∫_{-π}^{π} sin(n·x) dx = 0` for any positive integer `n : ℕ+`. -/
 private lemma integral_sin_pnat (n : ℕ+) :
     ∫ x in (-π)..π, sin ((n : ℝ) * x) = 0 := by
   have hn : (n : ℝ) ≠ 0 := by exact_mod_cast n.pos.ne'
@@ -154,7 +177,8 @@ private lemma integral_sin_pnat (n : ℕ+) :
     simp [mul_neg, cos_neg]
   exact (mul_eq_zero.mp key).resolve_left hn
 
--- ∫_{-π}^{π} (aₙcos(nx) + bₙsin(nx)) dx = 0 for each n : ℕ+ (orthogonality)
+/-- Orthogonality of individual Fourier terms:
+`∫_{-π}^{π} (aₙ cos(nx) + bₙ sin(nx)) dx = 0` for each `n : ℕ+`. -/
 private lemma integral_fourierTerm (n : ℕ+) :
     ∫ x in (-π)..π, (a n * cos ((n : ℝ) * x) + b n * sin ((n : ℝ) * x)) = 0 := by
   have hc : Continuous (fun x => a n * cos ((n : ℝ) * x)) :=
@@ -165,8 +189,8 @@ private lemma integral_fourierTerm (n : ℕ+) :
       intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
       integral_cos_pnat n, integral_sin_pnat n, mul_zero, mul_zero, add_zero]
 
--- The cross term a₀ · fourierSum integrates to zero over [-π, π]:
--- ∫_{-π}^{π} a₀ · (∑_{n≥1} aₙcos(nx) + bₙsin(nx)) dx = 0
+/-- The cross term integrates to zero over `[-π, π]`:
+`∫_{-π}^{π} a₀ · (∑_{n≥1} aₙ cos(nx) + bₙ sin(nx)) dx = 0`. -/
 lemma integration_of_cos_sin
     (hF_int : ∀ n : ℕ+, IntervalIntegrable
       (fun x => a n * cos ((n : ℕ+) * x) + b n * sin ((n : ℕ+) * x))
@@ -196,7 +220,7 @@ lemma integration_of_cos_sin
   -- Each term integrates to zero by orthogonality of trig functions
   simp_rw [integral_fourierTerm a b, tsum_zero]
 
--- ∫_(-π) ^π cos (nx) cos (mx) dx = 0 for n ≠ m
+/-- Orthogonality of cosines: `∫_{-π}^{π} cos(nx) cos(mx) dx = 0` for `n ≠ m`. -/
 lemma integration_cos_cos_zero (n m : ℕ+) (h : n ≠ m) :
     ∫ x in (-π)..π, cos (n  * x) * cos (m * x) = 0 := by
   -- (n-m) ≠ 0 in ℝ
@@ -235,7 +259,7 @@ lemma integration_cos_cos_zero (n m : ℕ+) (h : n ≠ m) :
       intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
       int_nm, int_np]; simp
 
--- ∫_(-π) ^π sin (nx) sin (mx) dx = 0 for n ≠ m
+/-- Orthogonality of sines: `∫_{-π}^{π} sin(nx) sin(mx) dx = 0` for `n ≠ m`. -/
 lemma integration_sin_sin_zero (n m : ℕ+) (h : n ≠ m) :
     ∫ x in (-π)..π, sin (n  * x) * sin (m * x) = 0 := by
   -- (n-m) ≠ 0 in ℝ
@@ -280,7 +304,7 @@ lemma integration_sin_sin_zero (n m : ℕ+) (h : n ≠ m) :
       intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
       int_nm, int_np]; simp
 
---∫ _(-π) ^ π cos (nx)sin (mx) dx = 0
+/-- Cross orthogonality: `∫_{-π}^{π} cos(nx) sin(mx) dx = 0` for `n ≠ m`. -/
 lemma integration_sin_cos_zero (n m : ℕ+) (h : n ≠ m) :
     ∫ x in (-π)..π, cos (n * x) * sin (m * x) = 0 := by
   have hnm_ne : (n : ℝ) - m ≠ 0 := sub_ne_zero.mpr (by exact_mod_cast h)
@@ -312,11 +336,12 @@ lemma integration_sin_cos_zero (n m : ℕ+) (h : n ≠ m) :
       intervalIntegral.integral_const_mul, intervalIntegral.integral_const_mul,
       int_sin_np, int_sin_nm]; simp
 
---∫ _(-π)^π cos(nx)cos(mx) dx = π for n = m
+/-- Self-orthogonality of cosines:
+`∫_{-π}^{π} cos(nx) cos(mx) dx = π` when `n = m`. -/
 lemma integration_cos_cos_pi (n m : ℕ+) (h : n = m) :
     ∫ x in (-π)..π, cos (n * x) * cos (m * x) = π := by
   subst h
-  -- cos^2(nx) = ½(1 + cos(2nx))
+  -- cos²(nx) = ½(1 + cos(2nx))
   have half_angle : ∀ x : ℝ,  cos ((n : ℝ) * x) * cos ((n : ℝ) * x) =
       1/2 + (1/2) * cos ((2 * (n : ℝ)) * x) := fun x => by
     have h := cos_sq ((n : ℝ) * x)
@@ -338,7 +363,8 @@ lemma integration_cos_cos_pi (n m : ℕ+) (h : n = m) :
   linarith
 
 
---∫ _(-π)^π sin(nx)sin(mx) dx = π for n = m
+/-- Self-orthogonality of sines:
+`∫_{-π}^{π} sin(nx) sin(mx) dx = π` when `n = m`. -/
 lemma integration_sin_sin_pi (n m : ℕ+) (h : n = m) :
     ∫ x in (-π)..π, sin (n * x) * sin (m * x) = π := by
   subst h
@@ -365,6 +391,8 @@ lemma integration_sin_sin_pi (n m : ℕ+) (h : n = m) :
   simp only [smul_eq_mul, sub_neg_eq_add, sub_zero]
   linarith
 
+/-- **Parseval's theorem**: Given square-integrability and suitable summability hypotheses,
+`(1/π) ∫_{-π}^{π} f(x)² dx = (1/2) a₀² + ∑_{n≥1} (aₙ² + bₙ²)`. -/
 theorem Parsevals_thm
     -- Integrability of a₀·S(x) over [-π, π]
     (hfS_int : IntervalIntegrable (fun x => a 0 * fourierSum a b x)
@@ -407,12 +435,77 @@ theorem Parsevals_thm
   simp only [add_zero]
   have hpi : (π : ℝ) ≠ 0 := Real.pi_ne_zero
   field_simp [hpi]
- 
 
- -- Wirtinger's Inequliity 
- -- Goals -- ∫ 0 ^ 2π f(x) = 0. 
- --
- -- we will prove the equality 
- 
 
-end
+/-- Each Fourier term is bounded in norm:
+`‖aₙ cos(nx) + bₙ sin(nx)‖ ≤ ‖aₙ‖ + ‖bₙ‖` for all `x : ℝ`. -/
+lemma term_bound (n : ℕ) (x : ℝ) :
+    ‖a (n + 1) * cos ((n + 1 : ℝ) * x) + b (n + 1) * sin ((n + 1 : ℝ) * x)‖
+    ≤ ‖a (n + 1)‖ + ‖b (n + 1)‖ := by
+  calc ‖a (n + 1) * cos ((n + 1 : ℝ) * x) + b (n + 1) * sin ((n + 1 : ℝ) * x)‖
+      ≤ ‖a (n + 1) * cos ((n + 1 : ℝ) * x)‖ + ‖b (n + 1) * sin ((n + 1 : ℝ) * x)‖ :=
+        norm_add_le _ _
+    _ = ‖a (n + 1)‖ * ‖cos ((n + 1 : ℝ) * x)‖ + ‖b (n + 1)‖ * ‖sin ((n + 1 : ℝ) * x)‖ := by
+        simp [norm_mul]
+    _ ≤ ‖a (n + 1)‖ * 1 + ‖b (n + 1)‖ * 1 := by
+        gcongr
+        · exact abs_cos_le_one _
+        · exact abs_sin_le_one _
+    _ = ‖a (n + 1)‖ + ‖b (n + 1)‖ := by ring
+
+#check @tendstoUniformly_tsum_nat
+
+/-- **Weierstrass M-test for Fourier series**: If `∑ (‖aₙ‖ + ‖bₙ‖)` converges, then the
+Fourier partial sums converge uniformly to `fourierSeries a b` on all of `ℝ`. -/
+lemma fourierSeries_uniformlyConvergence
+    (hsumab : Summable (fun n => ‖a n‖ + ‖b n‖)) :
+    TendstoUniformly
+      (fun N x => fourierPartialSum a b x N)
+      (fourierSeries a b)
+      Filter.atTop := by
+  unfold fourierPartialSum
+  -- Summability of the shifted bound sequence
+  have hshift : Summable (fun n => ‖a (n + 1)‖ + ‖b (n + 1)‖) :=
+    summable_pnat_iff_summable_succ.mp (summable_pnat_iff_summable_nat.mpr hsumab)
+  -- Weierstrass M-test: partial sums converge uniformly to the ℕ-indexed tsum
+  have hcore := tendstoUniformly_tsum_nat hshift (term_bound a b)
+  -- Use metric characterisation: reduce to dist bound on partial sums
+  rw [Metric.tendstoUniformly_iff]
+  intro ε hε
+  filter_upwards [(Metric.tendstoUniformly_iff.mp hcore) ε hε] with N hN
+  intro x
+  -- fourierSeries a b x = 1/2 * a 0 + ∑' n : ℕ, f(n+1)   (reindex ℕ+ → ℕ)
+  have heq : fourierSeries a b x =
+      1 / 2 * a 0 + ∑' n : ℕ, (a (n + 1) * cos ((↑n + 1) * x)
+      + b (n + 1) * sin ((↑n + 1) * x)) := by
+    simp only [fourierSeries]
+    congr 1
+    -- reindex: ∑' n : ℕ+, f n = ∑' n : ℕ, f (succPNat n)
+    rw [← Equiv.tsum_eq Equiv.pnatEquivNat.symm]
+    congr 1; ext n
+    simp [Nat.succPNat, Nat.cast_succ]
+  rw [heq, dist_add_left]
+  exact hN x
+
+
+/-- If `∑ (‖aₙ‖ + ‖bₙ‖)` converges, then the Fourier series `fourierSeries a b` is
+continuous on all of `ℝ`. -/
+lemma fourierSeries_continuous
+    (hsumab : Summable (fun n => ‖a n‖ + ‖b n‖)) :
+    Continuous (fourierSeries a b) := by
+  apply (fourierSeries_uniformlyConvergence a b hsumab).continuous
+  apply Filter.Eventually.frequently 
+  apply Filter.eventually_atTop.mpr
+  refine ⟨0, fun N _ => ?_⟩
+  unfold fourierPartialSum
+  apply Continuous.add continuous_const
+  apply continuous_finset_sum
+  intro n _
+  exact (continuous_const.mul (continuous_cos.comp (continuous_const.mul continuous_id))).add
+        (continuous_const.mul (continuous_sin.comp (continuous_const.mul continuous_id)))
+
+-- TODO: Wirtinger's Inequality
+-- Goal: ∫_0^{2π} f(x)² dx ≥ ∫_0^{2π} f'(x)² dx
+-- when ∫_0^{2π} f(x) dx = 0.
+
+end  
