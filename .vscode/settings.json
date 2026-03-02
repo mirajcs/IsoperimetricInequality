@@ -1,0 +1,10 @@
+{
+  "lean4.elaborationWorkers": 1,
+  "files.watcherExclude": {
+    "**/docbuild/**": true,
+    "**/.lake/**": true
+  },
+  "files.exclude": {
+    "**/docbuild/.lake": true
+  }
+}
