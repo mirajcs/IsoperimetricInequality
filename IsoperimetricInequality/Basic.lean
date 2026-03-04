@@ -504,6 +504,23 @@ lemma fourierSeries_continuous
   exact (continuous_const.mul (continuous_cos.comp (continuous_const.mul continuous_id))).add
         (continuous_const.mul (continuous_sin.comp (continuous_const.mul continuous_id)))
 
+/-- Prove that the Fourier series `f(x) = (1/2)a₀ + ∑ (aₙ cos nx + bₙ sin nx)`
+  is integrable on [-π , π] -/
+lemma fourierSeries_integrable (hsumab : Summable (fun n => ‖a n‖ + ‖b n‖)) :
+  IntervalIntegrable (fourierSeries a b)
+    MeasureTheory.volume (-Real.pi) Real.pi := by 
+      exact (fourierSeries_continuous a b hsumab).continuousOn 
+      |>.intervalIntegrable_of_Icc (by linarith [Real.pi_pos])
+
+/-- The formal derivative series converge unifrmly -> f is C¹ -> BV -/
+lemma fourierSeries_differentiable : 
+    Differentiable ℝ (fourierSeries a b) := by 
+    sorry -- requires showing term by term differentiation is valid 
+    -- partial sum + uniform convergence of derivative 
+
+
+
+
 -- TODO: Wirtinger's Inequality
 -- Goal: ∫_0^{2π} f(x)² dx ≥ ∫_0^{2π} f'(x)² dx
 -- when ∫_0^{2π} f(x) dx = 0.
