@@ -512,13 +512,20 @@ lemma fourierSeries_integrable (hsumab : Summable (fun n => ‖a n‖ + ‖b n�
       exact (fourierSeries_continuous a b hsumab).continuousOn 
       |>.intervalIntegrable_of_Icc (by linarith [Real.pi_pos])
 
+/-- The formal derivative of each term: 
+  d/dx [aₙ cos nx + bₙ sin nx] = [-aₙ n sin nx + bₙ n cos nx] -/
+noncomputable def fourierDeriv (a b : ℕ → ℝ) (x : ℝ) := 
+  ∑' n , (- n * a n * sin (n * x) + n * b n * cos (n * x))
+
+
+
 /-- The formal derivative series converge unifrmly -> f is C¹ -> BV -/
 lemma fourierSeries_differentiable : 
     Differentiable ℝ (fourierSeries a b) := by 
     sorry -- requires showing term by term differentiation is valid 
     -- partial sum + uniform convergence of derivative 
 
-
+#check norm_mul
 
 
 -- TODO: Wirtinger's Inequality
