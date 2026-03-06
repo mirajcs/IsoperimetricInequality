@@ -17,7 +17,12 @@ This file formalises basic properties of classical Fourier series needed on the 
 the isoperimetric inequality.  In particular we prove:
 
 * **Parseval's theorem** – `Parsevals_thm`
-* 
+* **Weierstrass M-test** – `fourierSeries_uniformlyConvergence`: if `∑ (‖aₙ‖ + ‖bₙ‖)` converges,
+  the partial sums converge uniformly to `fourierSeries a b`.
+* **Continuity** – `fourierSeries_continuous`: absolute summability implies continuity.
+* **Integrability** – `fourierSeries_integrable`: the Fourier series is integrable on `[-π, π]`.
+* **Term-wise differentiability** – `hasDerivAt_partialSum`: each partial sum is differentiable
+  with the expected term-by-term derivative.
 
 ## Notation
 
@@ -504,23 +509,108 @@ lemma fourierSeries_continuous
   exact (continuous_const.mul (continuous_cos.comp (continuous_const.mul continuous_id))).add
         (continuous_const.mul (continuous_sin.comp (continuous_const.mul continuous_id)))
 
-/-- Prove that the Fourier series `f(x) = (1/2)a₀ + ∑ (aₙ cos nx + bₙ sin nx)`
-  is integrable on [-π , π] -/
+/-- The Fourier series `f(x) = (1/2)a₀ + ∑ (aₙ cos nx + bₙ sin nx)`
+is integrable on `[-π, π]` whenever `∑ (‖aₙ‖ + ‖bₙ‖)` converges. -/
 lemma fourierSeries_integrable (hsumab : Summable (fun n => ‖a n‖ + ‖b n‖)) :
   IntervalIntegrable (fourierSeries a b)
     MeasureTheory.volume (-Real.pi) Real.pi := by 
       exact (fourierSeries_continuous a b hsumab).continuousOn 
       |>.intervalIntegrable_of_Icc (by linarith [Real.pi_pos])
 
-/-- The formal derivative of each term: 
-  d/dx [aₙ cos nx + bₙ sin nx] = [-aₙ n sin nx + bₙ n cos nx] -/
+/-- The formal derivative series: `d/dx [aₙ cos nx + bₙ sin nx] = -n aₙ sin nx + n bₙ cos nx`. -/
 noncomputable def fourierDeriv (a b : ℕ → ℝ) (x : ℝ) := 
   ∑' n , (- n * a n * sin (n * x) + n * b n * cos (n * x))
 
 
+/-- If `∑ n * (‖aₙ‖ + ‖bₙ‖)` converges, then the derivative series is summable at each `x`. -/
+lemma fourierDeriv_summable (hab' : Summable (fun n : ℕ => (n : ℝ) * (‖a n‖ + ‖b n‖))) (x : ℝ) :
+    Summable (fun n : ℕ => -(n : ℝ) * a n * sin (↑n * x) + ↑n * b n * cos (↑n * x)) := by
+  exact Summable.of_norm_bounded hab' fun (n : ℕ) => by
+    calc ‖-(n : ℝ) * a n * sin (↑n * x) + ↑n * b n * cos (↑n * x)‖
+        ≤ ‖-(n : ℝ) * a n * sin (↑n * x)‖ + ‖↑n * b n * cos (↑n * x)‖ := norm_add_le _ _
+      _ = ↑n * ‖a n‖ * ‖sin (↑n * x)‖ + ↑n * ‖b n‖ * ‖cos (↑n * x)‖ := by
+            simp [norm_mul, norm_neg]
+      _ ≤ ↑n * ‖a n‖ * 1 + ↑n * ‖b n‖ * 1 := by
+            gcongr
+            · exact abs_sin_le_one _
+            · exact abs_cos_le_one _
+      _ = ↑n * (‖a n‖ + ‖b n‖) := by ring
 
-/-- The formal derivative series converge unifrmly -> f is C¹ -> BV -/
-lemma fourierSeries_differentiable : 
+/-- If `∑ n * (‖aₙ‖ + ‖bₙ‖)` converges, the partial sums of the derivative series converge
+uniformly to `fourierDeriv a b` (Weierstrass M-test applied to the derivative). -/
+lemma fourierDeriv_uniformConvergence
+    (hab' : Summable (fun n : ℕ => (n : ℝ) * (‖a n‖ + ‖b n‖))) :
+    TendstoUniformly
+      (fun N x => ∑ n ∈ Finset.range N,
+        (-(n : ℝ) * a n * sin (n * x) + (n : ℝ) * b n * cos (n * x)))
+      (fourierDeriv a b)
+      Filter.atTop := by
+  change TendstoUniformly
+    (fun N x => ∑ n ∈ Finset.range N,
+      (-(n : ℝ) * a n * sin ((n : ℝ) * x) + (n : ℝ) * b n * cos ((n : ℝ) * x)))
+    (fun x => ∑' n : ℕ, (-(n : ℝ) * a n * sin ((n : ℝ) * x) + (n : ℝ) * b n * cos ((n : ℝ) * x)))
+    Filter.atTop
+  apply tendstoUniformly_tsum_nat hab'
+  intro n x
+  calc ‖-(n : ℝ) * a n * sin ((n : ℝ) * x) + (n : ℝ) * b n * cos ((n : ℝ) * x)‖
+      ≤ ‖-(n : ℝ) * a n * sin ((n : ℝ) * x)‖ + ‖(n : ℝ) * b n * cos ((n : ℝ) * x)‖ :=
+          norm_add_le _ _
+    _ = ↑n * ‖a n‖ * ‖sin ((n : ℝ) * x)‖ + ↑n * ‖b n‖ * ‖cos ((n : ℝ) * x)‖ := by
+          simp [norm_mul, norm_neg]
+    _ ≤ ↑n * ‖a n‖ * 1 + ↑n * ‖b n‖ * 1 := by
+          gcongr
+          · exact abs_sin_le_one _
+          · exact abs_cos_le_one _
+    _ = ↑n * (‖a n‖ + ‖b n‖) := by ring
+
+/-- Each Fourier term is differentiable:
+`d/dx [aₙ cos(nx) + bₙ sin(nx)] = -n aₙ sin(nx) + n bₙ cos(nx)`. -/
+lemma hasDerivAt_term (n : ℕ) (x : ℝ) :
+    HasDerivAt
+      (fun x => a n * cos (n * x) + b n * sin (n * x))
+      (-(n : ℝ) * a n * sin (n * x) + (n : ℝ) * b n * cos (n * x))
+      x := by
+  have h1 : HasDerivAt (fun x => a n * cos (n * x))
+                       (-(n : ℝ) * a n * sin (n * x)) x := by
+    have := ((hasDerivAt_id x).const_mul (n : ℝ)).cos
+    simp at this
+    exact this.const_mul (a n) |>.congr_deriv (by ring)
+  have h2 : HasDerivAt (fun x => b n * sin (n * x))
+                       ((n : ℝ) * b n * cos (n * x)) x := by
+    have := ((hasDerivAt_id x).const_mul (n : ℝ)).sin
+    simp at this
+    exact this.const_mul (b n) |>.congr_deriv (by ring)
+  exact h1.add h2
+
+/-- The `N`-th partial sum is differentiable, with derivative equal to the partial sum of
+term-wise derivatives. -/
+lemma hasDerivAt_partialSum (N : ℕ) (x : ℝ) :
+    HasDerivAt
+      (fun x => fourierPartialSum a b x N)
+      (∑ n ∈ Finset.range N,
+        (-(↑(n + 1) : ℝ) * a (n + 1) * sin (↑(n + 1) * x)
+          + ↑(n + 1) * b (n + 1) * cos (↑(n + 1) * x)))
+      x := by
+  unfold fourierPartialSum
+  -- Strip the constant: reduces goal to HasDerivAt (fun x => ∑ ...) (∑ ...) x
+  apply HasDerivAt.const_add
+  -- HasDerivAt.sum produces: HasDerivAt (∑ n ∈ s, fun x => f n x) D p  (Pi.sum form)
+  have hsum : HasDerivAt
+      (∑ n ∈ Finset.range N,
+        fun x => a (n + 1) * cos ((↑(n + 1) : ℝ) * x) + b (n + 1) * sin ((↑(n + 1) : ℝ) * x))
+      (∑ n ∈ Finset.range N,
+        (-(↑(n + 1) : ℝ) * a (n + 1) * sin ((↑(n + 1) : ℝ) * x)
+          + ↑(n + 1) * b (n + 1) * cos ((↑(n + 1) : ℝ) * x)))
+      x :=
+    HasDerivAt.sum fun n _ => hasDerivAt_term a b (n + 1) x
+  -- Bridge the form: goal has `fun x => ∑ ...`, hsum has `∑ n, fun x => ...`
+  convert hsum using 1
+  ext y
+  simp [Finset.sum_apply, Nat.cast_succ]
+
+
+/-- If the derivative series converges uniformly, then `fourierSeries a b` is differentiable. -/
+lemma fourierSeries_differentiable :
     Differentiable ℝ (fourierSeries a b) := by 
     sorry -- requires showing term by term differentiation is valid 
     -- partial sum + uniform convergence of derivative 
