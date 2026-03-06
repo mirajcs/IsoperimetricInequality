@@ -9,6 +9,7 @@ import Mathlib.MeasureTheory.Integral.DominatedConvergence
 import Mathlib.Analysis.BoundedVariation
 import Mathlib.Analysis.Normed.Lp.lpSpace
 import Mathlib.Analysis.Normed.Group.FunctionSeries
+import Mathlib.Analysis.Calculus.UniformLimitsDeriv
 
 /-!
 # The Isoperimetric Inequality
@@ -17,12 +18,6 @@ This file formalises basic properties of classical Fourier series needed on the 
 the isoperimetric inequality.  In particular we prove:
 
 * **Parseval's theorem** – `Parsevals_thm`
-* **Weierstrass M-test** – `fourierSeries_uniformlyConvergence`: if `∑ (‖aₙ‖ + ‖bₙ‖)` converges,
-  the partial sums converge uniformly to `fourierSeries a b`.
-* **Continuity** – `fourierSeries_continuous`: absolute summability implies continuity.
-* **Integrability** – `fourierSeries_integrable`: the Fourier series is integrable on `[-π, π]`.
-* **Term-wise differentiability** – `hasDerivAt_partialSum`: each partial sum is differentiable
-  with the expected term-by-term derivative.
 
 ## Notation
 
@@ -458,8 +453,6 @@ lemma term_bound (n : ℕ) (x : ℝ) :
         · exact abs_sin_le_one _
     _ = ‖a (n + 1)‖ + ‖b (n + 1)‖ := by ring
 
-#check @tendstoUniformly_tsum_nat
-
 /-- **Weierstrass M-test for Fourier series**: If `∑ (‖aₙ‖ + ‖bₙ‖)` converges, then the
 Fourier partial sums converge uniformly to `fourierSeries a b` on all of `ℝ`. -/
 lemma fourierSeries_uniformlyConvergence
@@ -608,18 +601,48 @@ lemma hasDerivAt_partialSum (N : ℕ) (x : ℝ) :
   ext y
   simp [Finset.sum_apply, Nat.cast_succ]
 
+/-- If `∑ n * (‖aₙ‖ + ‖bₙ‖)` and `∑ (‖aₙ‖ + ‖bₙ‖)` both converge, then the Fourier series
+`fourierSeries a b` is differentiable on all of `ℝ`. The proof uses term-by-term differentiation:
+uniform convergence of the derivative partial sums (Weierstrass M-test) together with pointwise
+convergence of the partial sums implies that the limit is differentiable with derivative
+`fourierDeriv a b`. -/
+lemma fourierSeries_differentiable (hab' : Summable (fun n : ℕ => (n : ℝ) * (‖a n‖ + ‖b n‖)))
+  (hab : Summable (fun n => ‖a n‖ + ‖b n‖)) :
+    Differentiable ℝ (fourierSeries a b) := by
+  intro x
+  -- Step 1: Uniform convergence of the (n+1)-indexed derivative partial sums.
+  -- Key identity: ∑ n ∈ range N, D(n+1, x) = ∑ n ∈ range (N+1), D(n, x)
+  -- since D(0, x) = 0 (via Finset.sum_range_succ'). The N ↦ N+1 shift then
+  -- preserves atTop convergence via Filter.Tendsto.eventually.
+  have hderiv_unif : TendstoUniformly
+      (fun N x => ∑ n ∈ Finset.range N,
+        (-(↑(n + 1) : ℝ) * a (n + 1) * sin (↑(n + 1) * x)
+          + ↑(n + 1) * b (n + 1) * cos (↑(n + 1) * x)))
+      (fourierDeriv a b)
+      Filter.atTop := by
+    have key : ∀ N x,
+        ∑ n ∈ Finset.range N,
+          (-(↑(n + 1) : ℝ) * a (n + 1) * sin (↑(n + 1) * x)
+            + ↑(n + 1) * b (n + 1) * cos (↑(n + 1) * x)) =
+        ∑ n ∈ Finset.range (N + 1),
+          (-(↑n : ℝ) * a n * sin (↑n * x) + ↑n * b n * cos (↑n * x)) :=
+      fun N x => by symm; rw [Finset.sum_range_succ']; simp
+    simp_rw [key]
+    exact fun u hu =>
+      (Filter.tendsto_atTop_atTop.mpr fun M => ⟨M - 1, fun N hN => by omega⟩).eventually
+        (fourierDeriv_uniformConvergence a b hab' u hu)
+  -- Step 2: Pointwise convergence of partial sums at each point.
+  have hf_conv : ∀ y, Filter.Tendsto
+      (fun N => fourierPartialSum a b y N)
+      Filter.atTop (nhds (fourierSeries a b y)) :=
+    fun y => (fourierSeries_uniformlyConvergence a b hab).tendsto_at y
+  -- Step 3: Apply term-by-term differentiation (hasDerivAt_of_tendstoUniformly).
+  -- hasDerivAt_partialSum gives HasDerivAt for each partial sum (∀ N x),
+  -- which implies the ∀ᶠ hypothesis via Filter.eventually_of_forall.
+  have hDA : HasDerivAt (fourierSeries a b) (fourierDeriv a b x) x :=
+    hasDerivAt_of_tendstoUniformly hderiv_unif
+      (Filter.Eventually.of_forall (hasDerivAt_partialSum a b))
+      hf_conv x
+  exact hDA.differentiableAt
 
-/-- If the derivative series converges uniformly, then `fourierSeries a b` is differentiable. -/
-lemma fourierSeries_differentiable :
-    Differentiable ℝ (fourierSeries a b) := by 
-    sorry -- requires showing term by term differentiation is valid 
-    -- partial sum + uniform convergence of derivative 
-
-#check norm_mul
-
-
--- TODO: Wirtinger's Inequality
--- Goal: ∫_0^{2π} f(x)² dx ≥ ∫_0^{2π} f'(x)² dx
--- when ∫_0^{2π} f(x) dx = 0.
-
-end  
+end
