@@ -601,25 +601,20 @@ lemma hasDerivAt_partialSum (N : ℕ) (x : ℝ) :
   ext y
   simp [Finset.sum_apply, Nat.cast_succ]
 
-/-- If `∑ n * (‖aₙ‖ + ‖bₙ‖)` and `∑ (‖aₙ‖ + ‖bₙ‖)` both converge, then the Fourier series
-`fourierSeries a b` is differentiable on all of `ℝ`. The proof uses term-by-term differentiation:
-uniform convergence of the derivative partial sums (Weierstrass M-test) together with pointwise
-convergence of the partial sums implies that the limit is differentiable with derivative
-`fourierDeriv a b`. -/
-lemma fourierSeries_differentiable (hab' : Summable (fun n : ℕ => (n : ℝ) * (‖a n‖ + ‖b n‖)))
-  (hab : Summable (fun n => ‖a n‖ + ‖b n‖)) :
-    Differentiable ℝ (fourierSeries a b) := by
-  intro x
-  -- Step 1: Uniform convergence of the (n+1)-indexed derivative partial sums.
+/-- Term-by-term differentiation: `HasDerivAt (fourierSeries a b) (fourierDeriv a b x) x`
+whenever `∑ n * (‖aₙ‖ + ‖bₙ‖)` and `∑ (‖aₙ‖ + ‖bₙ‖)` both converge. -/
+lemma fourierSeries_hasDerivAt (hab' : Summable (fun n : ℕ => (n : ℝ) * (‖a n‖ + ‖b n‖)))
+    (hab : Summable (fun n => ‖a n‖ + ‖b n‖)) (x : ℝ) :
+    HasDerivAt (fourierSeries a b) (fourierDeriv a b x) x := by
+  -- Uniform convergence of the (n+1)-shifted derivative partial sums.
   -- Key identity: ∑ n ∈ range N, D(n+1, x) = ∑ n ∈ range (N+1), D(n, x)
-  -- since D(0, x) = 0 (via Finset.sum_range_succ'). The N ↦ N+1 shift then
+  -- since D(0, x) = 0 (via Finset.sum_range_succ'). The N ↦ N+1 shift
   -- preserves atTop convergence via Filter.Tendsto.eventually.
   have hderiv_unif : TendstoUniformly
       (fun N x => ∑ n ∈ Finset.range N,
         (-(↑(n + 1) : ℝ) * a (n + 1) * sin (↑(n + 1) * x)
           + ↑(n + 1) * b (n + 1) * cos (↑(n + 1) * x)))
-      (fourierDeriv a b)
-      Filter.atTop := by
+      (fourierDeriv a b) Filter.atTop := by
     have key : ∀ N x,
         ∑ n ∈ Finset.range N,
           (-(↑(n + 1) : ℝ) * a (n + 1) * sin (↑(n + 1) * x)
@@ -631,18 +626,42 @@ lemma fourierSeries_differentiable (hab' : Summable (fun n : ℕ => (n : ℝ) * 
     exact fun u hu =>
       (Filter.tendsto_atTop_atTop.mpr fun M => ⟨M - 1, fun N hN => by omega⟩).eventually
         (fourierDeriv_uniformConvergence a b hab' u hu)
-  -- Step 2: Pointwise convergence of partial sums at each point.
-  have hf_conv : ∀ y, Filter.Tendsto
-      (fun N => fourierPartialSum a b y N)
-      Filter.atTop (nhds (fourierSeries a b y)) :=
-    fun y => (fourierSeries_uniformlyConvergence a b hab).tendsto_at y
-  -- Step 3: Apply term-by-term differentiation (hasDerivAt_of_tendstoUniformly).
-  -- hasDerivAt_partialSum gives HasDerivAt for each partial sum (∀ N x),
-  -- which implies the ∀ᶠ hypothesis via Filter.eventually_of_forall.
-  have hDA : HasDerivAt (fourierSeries a b) (fourierDeriv a b x) x :=
-    hasDerivAt_of_tendstoUniformly hderiv_unif
-      (Filter.Eventually.of_forall (hasDerivAt_partialSum a b))
-      hf_conv x
-  exact hDA.differentiableAt
+  exact hasDerivAt_of_tendstoUniformly hderiv_unif
+    (Filter.Eventually.of_forall (hasDerivAt_partialSum a b))
+    (fun y => (fourierSeries_uniformlyConvergence a b hab).tendsto_at y) x
+
+/-- If `∑ n * (‖aₙ‖ + ‖bₙ‖)` and `∑ (‖aₙ‖ + ‖bₙ‖)` both converge, then the Fourier series
+`fourierSeries a b` is differentiable on all of `ℝ`, with derivative `fourierDeriv a b`. -/
+lemma fourierSeries_differentiable (hab' : Summable (fun n : ℕ => (n : ℝ) * (‖a n‖ + ‖b n‖)))
+  (hab : Summable (fun n => ‖a n‖ + ‖b n‖)) :
+    Differentiable ℝ (fourierSeries a b) :=
+  fun x => (fourierSeries_hasDerivAt a b hab' hab x).differentiableAt
+
+/-- The derivative of the Fourier series equals the ℕ⁺-indexed derivative series. -/
+lemma FourierSerise_derivative (hab' : Summable (fun n : ℕ => (n : ℝ) * (‖a n‖ + ‖b n‖)))
+  (hab : Summable (fun n => ‖a n‖ + ‖b n‖))
+  (x : ℝ) :
+    deriv (fourierSeries a b) x =
+      ∑' n : ℕ+, (-(a n) * (n : ℝ) * Real.sin ((n : ℝ) * x) +
+      b n * (n : ℝ) * Real.cos ((n : ℝ) * x)) := by
+  rw [(fourierSeries_hasDerivAt a b hab' hab x).deriv]
+  simp only [fourierDeriv]
+  rw [(fourierDeriv_summable a b hab' x).tsum_eq_zero_add]
+  simp only [Nat.cast_zero, neg_zero, zero_mul, zero_add]
+  rw [← Equiv.tsum_eq Equiv.pnatEquivNat.symm]
+  congr 1; ext n
+  simp [Nat.succPNat, Nat.cast_succ]
+  ring
+ 
+/-- **Wirtinger's inequality**: `(1/pi) * int (f'(x))^2 = sum n^2 * (a n^2 + b n^2)`.
+The integral formula `h_int_sq` is the Parseval identity for the derivative series,
+mirroring the `h_int_sq` hypothesis in `Parsevals_thm`. -/
+theorem Wirtingers_inequality
+    (h_int_sq : ∫ x in (-π)..π, (deriv (fourierSeries a b) x) ^ 2 =
+        π * ∑' n : ℕ+, ((n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2))) :
+    (1/π) * ∫ x in (-π)..π, (deriv (fourierSeries a b) x) ^ 2 =
+        ∑' n : ℕ+, ((n : ℝ)^2 * ((a n)^2 + (b n)^2)) := by
+  rw [h_int_sq]
+  field_simp [Real.pi_ne_zero]
 
 end
