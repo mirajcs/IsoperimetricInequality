@@ -18,6 +18,24 @@ This file formalises basic properties of classical Fourier series needed on the 
 the isoperimetric inequality.  In particular we prove:
 
 * **Parseval's theorem** – `Parsevals_thm`
+* **Wirtinger's inequality** – `Wirtingers_inequality`
+
+## Main results
+
+### Parseval's theorem (`Parsevals_thm`)
+Given a Fourier series `f(x) = a₀/2 + ∑_{n≥1} (aₙ cos(nx) + bₙ sin(nx))`,
+under suitable integrability and summability hypotheses,
+```
+(1/π) ∫_{-π}^{π} f(x)² dx = (1/2) a₀² + ∑_{n≥1} (aₙ² + bₙ²).
+```
+
+### Wirtinger's inequality (`Wirtingers_inequality`)
+Given the same Fourier series, the Parseval identity applied to the derivative series yields
+```
+(1/π) ∫_{-π}^{π} (f'(x))² dx = ∑_{n≥1} n² (aₙ² + bₙ²).
+```
+This is the continuous analogue of the discrete Wirtinger inequality, and reflects that
+differentiation weights each Fourier mode by its frequency `n`.
 
 ## Notation
 
@@ -492,7 +510,7 @@ lemma fourierSeries_continuous
     (hsumab : Summable (fun n => ‖a n‖ + ‖b n‖)) :
     Continuous (fourierSeries a b) := by
   apply (fourierSeries_uniformlyConvergence a b hsumab).continuous
-  apply Filter.Eventually.frequently 
+  apply Filter.Eventually.frequently
   apply Filter.eventually_atTop.mpr
   refine ⟨0, fun N _ => ?_⟩
   unfold fourierPartialSum
@@ -506,12 +524,12 @@ lemma fourierSeries_continuous
 is integrable on `[-π, π]` whenever `∑ (‖aₙ‖ + ‖bₙ‖)` converges. -/
 lemma fourierSeries_integrable (hsumab : Summable (fun n => ‖a n‖ + ‖b n‖)) :
   IntervalIntegrable (fourierSeries a b)
-    MeasureTheory.volume (-Real.pi) Real.pi := by 
-      exact (fourierSeries_continuous a b hsumab).continuousOn 
+    MeasureTheory.volume (-Real.pi) Real.pi := by
+      exact (fourierSeries_continuous a b hsumab).continuousOn
       |>.intervalIntegrable_of_Icc (by linarith [Real.pi_pos])
 
 /-- The formal derivative series: `d/dx [aₙ cos nx + bₙ sin nx] = -n aₙ sin nx + n bₙ cos nx`. -/
-noncomputable def fourierDeriv (a b : ℕ → ℝ) (x : ℝ) := 
+noncomputable def fourierDeriv (a b : ℕ → ℝ) (x : ℝ) :=
   ∑' n , (- n * a n * sin (n * x) + n * b n * cos (n * x))
 
 
@@ -652,7 +670,7 @@ lemma FourierSerise_derivative (hab' : Summable (fun n : ℕ => (n : ℝ) * (‖
   congr 1; ext n
   simp [Nat.succPNat, Nat.cast_succ]
   ring
- 
+
 /-- **Wirtinger's inequality**: `(1/pi) * int (f'(x))^2 = sum n^2 * (a n^2 + b n^2)`.
 The integral formula `h_int_sq` is the Parseval identity for the derivative series,
 mirroring the `h_int_sq` hypothesis in `Parsevals_thm`. -/
