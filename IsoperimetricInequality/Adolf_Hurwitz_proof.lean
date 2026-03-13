@@ -66,7 +66,8 @@ lemma fParm_periodic (γ : SimpleClosedC1Curve 2) (θ : ℝ) :
     field_simp
   rw [h, γ.periodic]
 
-lemma gParm_periodic (γ : SimpleClosedC1Curve 2) (θ : ℝ) : 
+/-- gParm and fParm are 2π-periodic. -/
+lemma gParm_periodic (γ : SimpleClosedC1Curve 2) (θ : ℝ) :
     gParm γ (θ + 2 * Real.pi) = gParm γ θ := by
       simp only [gParm, yCoord]
       have h : γ.length * (θ + 2 * Real.pi) / (2 * Real.pi) = 
@@ -121,6 +122,8 @@ lemma fParm_deriv (γ : SimpleClosedC1Curve 2) (θ : ℝ) :
     HasDerivAt.comp θ hg hinner
   exact HasDerivAt.deriv hcomp
 
+/-- The derivative of gParm by the chain rule:
+    (gParm γ)'(θ) = (yCoord γ)'(γ.length · θ / (2π)) · γ.length / (2π) -/
 lemma gParm_deriv (γ : SimpleClosedC1Curve 2) (θ : ℝ) :
     deriv (gParm γ) θ =
       deriv (yCoord γ) (γ.length * θ / (2 * Real.pi)) * (γ.length / (2 * Real.pi)) := by
@@ -151,3 +154,128 @@ lemma fParm_gParm_deriv_sq_sum (γ : SimpleClosedC1Curve 2) (θ : ℝ) :
   rw [fParm_deriv, gParm_deriv]
   ring
 
+/-- Under arc-length parametrization, the sum of squares of coordinate derivatives equals 1,
+    because the speed ‖γ'(t)‖ = 1 and the two components square-sum to the squared norm. -/
+lemma due_to_arc_length_parametrization (γ : SimpleClosedC1Curve 2)
+    (h : IsArcLengthParametrized γ) (θ : ℝ) :
+    deriv (xCoord γ) (γ.length * θ / (2 * Real.pi)) ^ 2 +
+    deriv (yCoord γ) (γ.length * θ / (2 * Real.pi)) ^ 2 = 1 := by
+  set t := γ.length * θ / (2 * Real.pi)
+  have hxd := (xCoord_hasDerivAt γ t).deriv
+  have hyd := (yCoord_hasDerivAt γ t).deriv
+  have hchoose : deriv γ.curve t = (γ.has_deriv t).choose :=
+    (γ.has_deriv t).choose_spec.deriv
+  have hnorm : ‖(γ.has_deriv t).choose‖ = 1 := by rw [← hchoose]; exact h t
+  rw [hxd, hyd]
+  have hsq : (γ.has_deriv t).choose 0 ^ 2 + (γ.has_deriv t).choose 1 ^ 2 =
+      ‖(γ.has_deriv t).choose‖ ^ 2 := by
+    rw [EuclideanSpace.norm_sq_eq]
+    simp [Fin.sum_univ_two, Real.norm_eq_abs, sq_abs]
+  rw [hsq, hnorm, one_pow]
+
+/-- Under arc-length parametrization, the sum of squared derivatives of the reparametrized
+    coordinates is the constant `(L / 2π)²`. -/
+lemma fParm_gParm_deriv_eq_sum_const (γ : SimpleClosedC1Curve 2)
+    (h : IsArcLengthParametrized γ) (θ : ℝ) :
+    deriv (fParm γ) θ ^ 2 + deriv (gParm γ) θ ^ 2 = (γ.length / (2 * Real.pi)) ^ 2 := by
+  rw [fParm_gParm_deriv_sq_sum]
+  rw [due_to_arc_length_parametrization γ h]
+  ring
+
+
+/-- The signed area enclosed by `γ` between parameters `a` and `b`,
+    computed via the shoelace formula: 1/2 ∫ (x · y' - y · x') dt. -/
+noncomputable def area (γ : SimpleClosedC1Curve 2)
+  (a b : ℝ) : ℝ := 
+  (1/2)*∫ t in a..b, (γ.curve t 0 * deriv γ.curve t 1 - γ.curve t 1 * deriv γ.curve t 0)
+
+
+/-- x'(s) = (2π/L) f'(θ), where θ = 2π·s/L -/
+lemma xPrime_s (γ : SimpleClosedC1Curve 2) (s : ℝ) :
+    deriv (xCoord γ) s =
+      (2 * Real.pi) / γ.length * deriv (fParm γ) (2 * Real.pi * s / γ.length) := by
+  have hpi : (0 : ℝ) < 2 * Real.pi := by positivity
+  have hL : (0 : ℝ) < γ.length := γ.length_pos
+  have h := fParm_deriv γ (2 * Real.pi * s / γ.length)
+  have hsimp : γ.length * (2 * Real.pi * s / γ.length) / (2 * Real.pi) = s := by
+    field_simp
+  rw [hsimp] at h
+  rw [h]
+  field_simp [hL.ne', hpi.ne']
+
+/-- y'(s) = (2π/L) g'(θ), where θ = 2π·s/L -/ 
+lemma yPrime_s (γ : SimpleClosedC1Curve 2) (s : ℝ) : 
+    deriv (yCoord γ) s = 
+      (2 * Real.pi) / γ.length * deriv (gParm γ) (2 * Real.pi * s / γ.length) := by 
+    have hpi : (0 : ℝ) < 2 * Real.pi := by positivity 
+    have hL : (0 : ℝ) < γ.length := γ.length_pos 
+    have h := gParm_deriv γ (2 * Real.pi * s / γ.length)
+    have hsimp : γ.length * (2 * Real.pi * s / γ.length) / (2 * Real.pi) = s := by 
+      field_simp
+    rw [hsimp] at h 
+    rw [h]
+    field_simp [hL.ne', hpi.ne']
+
+/-- area = (1/2)∫₀²π f(θ)g'(θ) - g(θ)f'(θ) dθ -/
+lemma area_parametrized (γ : SimpleClosedC1Curve 2) (s : ℝ) :
+    area γ 0 γ.length =
+      (1 / 2) * ∫ t in (0 : ℝ)..(2 * Real.pi),
+        fParm γ t * deriv (gParm γ) t - gParm γ t * deriv (fParm γ) t := by
+  unfold area 
+  have hL : (0 : ℝ) < γ.length := γ.length_pos 
+  have hpi : (0 : ℝ) < 2 * Real.pi := by positivity
+  have key : (1/2) * ∫ s in (0 : ℝ)..γ.length, 
+    (xCoord γ s * deriv (yCoord γ) s - yCoord γ s * deriv (xCoord γ) s) = 
+    (1/2) * ∫ t in (0 : ℝ)..(2*Real.pi), 
+    fParm γ t * deriv (gParm γ) t - gParm γ t * deriv (fParm γ) t := by 
+      have xeq : ∀ s, xCoord γ s = fParm γ (2 * Real.pi * s / γ.length) := fun s ↦ by
+        simp only [fParm, xCoord]
+        have heq : γ.length * (2 * Real.pi * s / γ.length) / (2 * Real.pi) = s := by
+         field_simp [hL.ne']
+        rw [heq]
+      have yeq : ∀ s, yCoord γ s = gParm γ (2 * Real.pi * s / γ.length) := fun s ↦ by 
+        simp only [gParm, yCoord]
+        have heq : γ.length * (2 * Real.pi * s / γ.length) / (2 * Real.pi) = s := by 
+          field_simp [hL.ne']
+        rw [heq]
+      simp_rw [xeq, yeq, xPrime_s, yPrime_s] 
+
+      have hπL_ne : γ.length ≠ 0 := hL.ne'
+      have h2π_ne : (2 : ℝ) * Real.pi ≠ 0 := hpi.ne'
+      have hscale : (2 * Real.pi / γ.length) ≠ 0 := div_ne_zero h2π_ne hπL_ne
+      -- factor (2π/L) out of each integrand term
+      have factor : ∀ s : ℝ,
+          fParm γ (2 * Real.pi * s / γ.length) *
+            (2 * Real.pi / γ.length * deriv (gParm γ) (2 * Real.pi * s / γ.length)) -
+          gParm γ (2 * Real.pi * s / γ.length) *
+            (2 * Real.pi / γ.length * deriv (fParm γ) (2 * Real.pi * s / γ.length)) =
+          (2 * Real.pi / γ.length) *
+            (fParm γ (2 * Real.pi / γ.length * s) * deriv (gParm γ) (2 * Real.pi / γ.length * s) -
+             gParm γ (2 * Real.pi / γ.length * s) * deriv (fParm γ) (2 * Real.pi / γ.length * s)) :=
+        fun s => by rw [show 2 * Real.pi * s / γ.length = 
+        2 * Real.pi / γ.length * s from by ring]; ring
+      congr 1
+      simp_rw [factor, intervalIntegral.integral_const_mul]
+      -- use smul_integral_comp_mul_left with named args to pin down f exactly
+      have key3 := intervalIntegral.smul_integral_comp_mul_left
+        (f := fun t : ℝ => fParm γ t * deriv (gParm γ) t - gParm γ t * deriv (fParm γ) t)
+        (a := (0 : ℝ)) (b := γ.length) (2 * Real.pi / γ.length)
+      rw [mul_zero, show (2 * Real.pi / γ.length) * γ.length = 2 * Real.pi from by
+        field_simp] at key3
+      exact key3
+  -- connect the outer goal (uses .ofLp and deriv γ.curve) to key (uses xCoord/yCoord)
+  have hxd : ∀ t : ℝ, deriv (xCoord γ) t = (deriv γ.curve t) 0 := fun t => by
+    rw [(xCoord_hasDerivAt γ t).deriv, (γ.has_deriv t).choose_spec.deriv]
+  have hyd : ∀ t : ℝ, deriv (yCoord γ) t = (deriv γ.curve t) 1 := fun t => by
+    rw [(yCoord_hasDerivAt γ t).deriv, (γ.has_deriv t).choose_spec.deriv]
+  have eq1 : (1/2) * ∫ t in (0:ℝ)..γ.length,
+      ((γ.curve t).ofLp 0 * (deriv γ.curve t).ofLp 1 -
+       (γ.curve t).ofLp 1 * (deriv γ.curve t).ofLp 0) =
+    (1/2) * ∫ s in (0:ℝ)..γ.length,
+      (xCoord γ s * deriv (yCoord γ) s - yCoord γ s * deriv (xCoord γ) s) := by
+    congr 1
+    apply intervalIntegral.integral_congr
+    intro t _
+    simp only [xCoord, yCoord, hxd, hyd]
+  rw [eq1]
+  exact key
