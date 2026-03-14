@@ -7,6 +7,7 @@ import Mathlib.Analysis.Calculus.FDeriv.WithLp
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Tactic.Ring
+import Mathlib.MeasureTheory.Integral.IntervalIntegral.IntegrationByParts
 
 
 /-- A simple closed C¹ curve in ℝⁿ, parametrized over [0, L] where L is the arc length. -/
@@ -217,7 +218,7 @@ lemma yPrime_s (γ : SimpleClosedC1Curve 2) (s : ℝ) :
     field_simp [hL.ne', hpi.ne']
 
 /-- area = (1/2)∫₀²π f(θ)g'(θ) - g(θ)f'(θ) dθ -/
-lemma area_parametrized (γ : SimpleClosedC1Curve 2) (s : ℝ) :
+lemma area_parametrized (γ : SimpleClosedC1Curve 2) :
     area γ 0 γ.length =
       (1 / 2) * ∫ t in (0 : ℝ)..(2 * Real.pi),
         fParm γ t * deriv (gParm γ) t - gParm γ t * deriv (fParm γ) t := by
@@ -239,7 +240,6 @@ lemma area_parametrized (γ : SimpleClosedC1Curve 2) (s : ℝ) :
           field_simp [hL.ne']
         rw [heq]
       simp_rw [xeq, yeq, xPrime_s, yPrime_s] 
-
       have hπL_ne : γ.length ≠ 0 := hL.ne'
       have h2π_ne : (2 : ℝ) * Real.pi ≠ 0 := hpi.ne'
       have hscale : (2 * Real.pi / γ.length) ≠ 0 := div_ne_zero h2π_ne hπL_ne
@@ -279,3 +279,99 @@ lemma area_parametrized (γ : SimpleClosedC1Curve 2) (s : ℝ) :
     simp only [xCoord, yCoord, hxd, hyd]
   rw [eq1]
   exact key
+
+/-- IBP to prove ∫₀²π f(θ) g'(θ) dθ = -∫₀²π g(θ) f'(θ) dθ -/
+lemma IBP_to_fParm_gParm (γ : SimpleClosedC1Curve 2)
+    (hdc : Continuous (deriv γ.curve)) :
+    ∫ t in (0 : ℝ)..(2 * Real.pi), fParm γ t * deriv (gParm γ) t =
+      -∫ t in (0 : ℝ)..(2 * Real.pi), gParm γ t * deriv (fParm γ) t := by
+  -- Step 1: HasDerivAt for fParm γ at every point (chain rule)
+  have hfHD : ∀ t : ℝ, HasDerivAt (fParm γ) (deriv (fParm γ) t) t := fun t => by
+    rw [fParm_deriv]
+    have hinner : HasDerivAt (fun θ : ℝ => γ.length * θ / (2 * Real.pi))
+        (γ.length / (2 * Real.pi)) t := by
+      have heq : (fun θ : ℝ => γ.length * θ / (2 * Real.pi)) =
+                 fun θ => θ * (γ.length / (2 * Real.pi)) := by ext θ; ring
+      rw [heq]; simpa using (hasDerivAt_id t).mul_const (γ.length / (2 * Real.pi))
+    exact HasDerivAt.comp t
+      (xCoord_hasDerivAt γ _).differentiableAt.hasDerivAt hinner
+  -- Step 2: HasDerivAt for gParm γ at every point (chain rule)
+  have hgHD : ∀ t : ℝ, HasDerivAt (gParm γ) (deriv (gParm γ) t) t := fun t => by
+    rw [gParm_deriv]
+    have hinner : HasDerivAt (fun θ : ℝ => γ.length * θ / (2 * Real.pi))
+        (γ.length / (2 * Real.pi)) t := by
+      have heq : (fun θ : ℝ => γ.length * θ / (2 * Real.pi)) =
+                 fun θ => θ * (γ.length / (2 * Real.pi)) := by ext θ; ring
+      rw [heq]; simpa using (hasDerivAt_id t).mul_const (γ.length / (2 * Real.pi))
+    exact HasDerivAt.comp t
+      (yCoord_hasDerivAt γ _).differentiableAt.hasDerivAt hinner
+  -- Step 3: HasDerivAt for the product t ↦ fParm γ t * gParm γ t (product rule)
+  have hprodHD : ∀ t ∈ Set.uIcc (0 : ℝ) (2 * Real.pi),
+      HasDerivAt (fun t => fParm γ t * gParm γ t)
+        (deriv (fParm γ) t * gParm γ t + fParm γ t * deriv (gParm γ) t) t :=
+    fun t _ => (hfHD t).mul (hgHD t)
+  -- Step 4: Express coordinate derivatives in terms of deriv γ.curve
+  have hxd : ∀ t : ℝ, deriv (xCoord γ) t = (deriv γ.curve t) 0 := fun t => by
+    rw [(xCoord_hasDerivAt γ t).deriv, (γ.has_deriv t).choose_spec.deriv]
+  have hyd : ∀ t : ℝ, deriv (yCoord γ) t = (deriv γ.curve t) 1 := fun t => by
+    rw [(yCoord_hasDerivAt γ t).deriv, (γ.has_deriv t).choose_spec.deriv]
+  -- Step 5: Continuity of coordinate projections (PiLp projections are CLMs)
+  have eval0 : Continuous (fun v : EuclideanSpace ℝ (Fin 2) => v 0) :=
+    (PiLp.proj (𝕜 := ℝ) 2 (fun _ : Fin 2 => ℝ) 0).continuous
+  have eval1 : Continuous (fun v : EuclideanSpace ℝ (Fin 2) => v 1) :=
+    (PiLp.proj (𝕜 := ℝ) 2 (fun _ : Fin 2 => ℝ) 1).continuous
+  -- Step 6: Continuity of the reparametrization θ ↦ L·θ/(2π)
+  have hlinear : Continuous (fun θ : ℝ => γ.length * θ / (2 * Real.pi)) := by fun_prop
+  -- Step 7: Continuity of fParm γ and gParm γ
+  have hf_cont : Continuous (fParm γ) := by
+    have heq : fParm γ = (fun v : EuclideanSpace ℝ (Fin 2) => v 0) ∘ γ.curve ∘
+               (fun θ => γ.length * θ / (2 * Real.pi)) := by
+      ext θ; simp [fParm, xCoord, Function.comp]
+    rw [heq]; exact eval0.comp (γ.continuous.comp hlinear)
+  have hg_cont : Continuous (gParm γ) := by
+    have heq : gParm γ = (fun v : EuclideanSpace ℝ (Fin 2) => v 1) ∘ γ.curve ∘
+               (fun θ => γ.length * θ / (2 * Real.pi)) := by
+      ext θ; simp [gParm, yCoord, Function.comp]
+    rw [heq]; exact eval1.comp (γ.continuous.comp hlinear)
+  -- Step 8: Continuity of deriv (fParm γ) and deriv (gParm γ)
+  have hdf_cont : Continuous (fun θ => deriv (fParm γ) θ) := by
+    have heq : (fun θ => deriv (fParm γ) θ) =
+               fun θ => (deriv γ.curve (γ.length * θ / (2 * Real.pi))) 0 *
+                        (γ.length / (2 * Real.pi)) := by
+      ext θ; rw [fParm_deriv, hxd]
+    rw [heq]; exact (eval0.comp (hdc.comp hlinear)).mul continuous_const
+  have hdg_cont : Continuous (fun θ => deriv (gParm γ) θ) := by
+    have heq : (fun θ => deriv (gParm γ) θ) =
+               fun θ => (deriv γ.curve (γ.length * θ / (2 * Real.pi))) 1 *
+                        (γ.length / (2 * Real.pi)) := by
+      ext θ; rw [gParm_deriv, hyd]
+    rw [heq]; exact (eval1.comp (hdc.comp hlinear)).mul continuous_const
+  -- Step 9: Integrability from continuity on compact intervals
+  have hint1 : IntervalIntegrable (fun t => deriv (fParm γ) t * gParm γ t)
+      MeasureTheory.volume 0 (2 * Real.pi) :=
+    (hdf_cont.mul hg_cont).intervalIntegrable _ _
+  have hint2 : IntervalIntegrable (fun t => fParm γ t * deriv (gParm γ) t)
+      MeasureTheory.volume 0 (2 * Real.pi) :=
+    (hf_cont.mul hdg_cont).intervalIntegrable _ _
+  have hint : IntervalIntegrable
+      (fun t => deriv (fParm γ) t * gParm γ t + fParm γ t * deriv (gParm γ) t)
+      MeasureTheory.volume 0 (2 * Real.pi) := hint1.add hint2
+  -- Step 5: FTC — ∫₀²π (fg)' = fg(2π) - fg(0)
+  have ftc := intervalIntegral.integral_eq_sub_of_hasDerivAt hprodHD hint
+  -- Step 6: Boundary term vanishes by 2π-periodicity of f and g
+  have hf2π : fParm γ (2 * Real.pi) = fParm γ 0 := by
+    have h := fParm_periodic γ 0; simp only [zero_add] at h; exact h
+  have hg2π : gParm γ (2 * Real.pi) = gParm γ 0 := by
+    have h := gParm_periodic γ 0; simp only [zero_add] at h; exact h
+  rw [hf2π, hg2π, sub_self] at ftc
+  -- ftc : ∫ (f'g + fg') = 0
+  -- Step 7: Split the integral of the sum
+  rw [intervalIntegral.integral_add hint1 hint2] at ftc
+  -- ftc : ∫ f'g + ∫ fg' = 0
+  -- Step 8: Solve for ∫ fg' and rewrite using commutativity of multiplication
+  have key : ∫ t in (0:ℝ)..(2 * Real.pi), fParm γ t * deriv (gParm γ) t =
+             -(∫ t in (0:ℝ)..(2 * Real.pi), deriv (fParm γ) t * gParm γ t) := by linarith
+  rw [key]
+  congr 1
+  apply intervalIntegral.integral_congr
+  intro t _; ring
