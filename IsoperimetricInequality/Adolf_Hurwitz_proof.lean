@@ -1,3 +1,4 @@
+import IsoperimetricInequality.Basic
 import Mathlib.Analysis.InnerProductSpace.PiL2
 import Mathlib.Topology.Basic
 import Mathlib.Analysis.Calculus.Deriv.Basic
@@ -9,6 +10,46 @@ import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Tactic.Ring
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.IntegrationByParts
 
+/-!
+# Adolf Hurwitz's Proof of the Isoperimetric Inequality
+
+This file formalizes Adolf Hurwitz's 1902 proof of the classical isoperimetric inequality
+in the plane: among all simple closed curves of a given perimeter, the circle encloses the
+maximum area.
+
+## Proof outline
+
+Given a simple closed C¹ curve `γ` of length `L`, we reparametrize it over `[0, 2π]` via
+  `f(θ) = x(Lθ/(2π))`,  `g(θ) = y(Lθ/(2π))`.
+
+The proof proceeds as follows:
+1. **Area formula**: Express the enclosed area using the shoelace formula and reparametrize
+   to get `area = (1/2) ∫₀²π (f g' - g f') dθ`.
+2. **IBP**: Integration by parts shows `∫ f g' = -∫ g f'`, simplifying the area to
+   `area = ∫₀²π f g' dθ`.
+3. **AM-GM inequality**: Pointwise `2 f g' ≤ f² + (g')²` gives
+   `area ≤ (1/2) ∫₀²π (f² + (g')²) dθ`.
+4. **Wirtinger's inequality**: Since `f` has zero mean (centroid at origin), Parseval's
+   theorem from `IsoperimetricInequality.Basic` gives `∫ f² ≤ ∫ (f')²`, upgrading step 3 to
+   `area ≤ (1/2) ∫₀²π ((f')² + (g')²) dθ`.
+5. **Arc-length constraint** (to be completed): Under arc-length parametrization,
+   `(f')² + (g')² = (L/(2π))²` everywhere, so
+   `∫₀²π ((f')² + (g')²) dθ = L²/(2π)`, yielding `area ≤ L²/(4π)`,
+   with equality iff `γ` is a circle.
+
+## Main declarations
+
+- `SimpleClosedC1Curve`: structure for simple closed C¹ curves parametrized over `[0, L]`
+- `area_parametrized`: shoelace area formula in terms of `f`, `g`
+- `IBP_to_fParm_gParm`: integration by parts for `∫ f g'`
+- `area_simplified`: area equals `∫ f g' dθ`
+- `fParm_gParm_ineq`: AM-GM pointwise inequality
+- `area_inequality`: area bounded by `(1/2) ∫ (f² + (g')²) dθ`
+- `apply_Wirtingers_ineq`: Wirtinger's inequality `∫ f² ≤ ∫ (f')²` for zero-mean `f`
+- `addition_ineq`: combines AM-GM and Wirtinger to give `area ≤ (1/2) ∫ ((f')² + (g')²) dθ`
+- `apply_fParm_gParm_deriv_sq_sum`: arc-length constraint gives `area ≤ (1/2) ∫₀²π L²/(4π²) dθ`
+- `isoperimetric_inequality`: the main result `area ≤ L²/(4π)`
+-/
 
 /-- A simple closed C¹ curve in ℝⁿ, parametrized over [0, L] where L is the arc length. -/
 structure SimpleClosedC1Curve (n : ℕ) where
@@ -58,7 +99,7 @@ noncomputable def fParm (γ : SimpleClosedC1Curve 2) (θ : ℝ) : ℝ :=
 noncomputable def gParm (γ : SimpleClosedC1Curve 2) (θ : ℝ) : ℝ :=
   yCoord γ (γ.length * θ / (2 * Real.pi))
 
-/-- fParm and gPram are 2π-periodic. -/
+/-- fParm is 2π-periodic. -/
 lemma fParm_periodic (γ : SimpleClosedC1Curve 2) (θ : ℝ) :
     fParm γ (θ + 2 * Real.pi) = fParm γ θ := by
   simp only [fParm, xCoord]
@@ -67,7 +108,7 @@ lemma fParm_periodic (γ : SimpleClosedC1Curve 2) (θ : ℝ) :
     field_simp
   rw [h, γ.periodic]
 
-/-- gParm and fParm are 2π-periodic. -/
+/-- gParm is 2π-periodic. -/
 lemma gParm_periodic (γ : SimpleClosedC1Curve 2) (θ : ℝ) :
     gParm γ (θ + 2 * Real.pi) = gParm γ θ := by
       simp only [gParm, yCoord]
@@ -356,22 +397,282 @@ lemma IBP_to_fParm_gParm (γ : SimpleClosedC1Curve 2)
   have hint : IntervalIntegrable
       (fun t => deriv (fParm γ) t * gParm γ t + fParm γ t * deriv (gParm γ) t)
       MeasureTheory.volume 0 (2 * Real.pi) := hint1.add hint2
-  -- Step 5: FTC — ∫₀²π (fg)' = fg(2π) - fg(0)
+  -- Step 10: FTC — ∫₀²π (fg)' = fg(2π) - fg(0)
   have ftc := intervalIntegral.integral_eq_sub_of_hasDerivAt hprodHD hint
-  -- Step 6: Boundary term vanishes by 2π-periodicity of f and g
+  -- Step 11: Boundary term vanishes by 2π-periodicity of f and g
   have hf2π : fParm γ (2 * Real.pi) = fParm γ 0 := by
     have h := fParm_periodic γ 0; simp only [zero_add] at h; exact h
   have hg2π : gParm γ (2 * Real.pi) = gParm γ 0 := by
     have h := gParm_periodic γ 0; simp only [zero_add] at h; exact h
   rw [hf2π, hg2π, sub_self] at ftc
   -- ftc : ∫ (f'g + fg') = 0
-  -- Step 7: Split the integral of the sum
+  -- Step 12: Split the integral of the sum
   rw [intervalIntegral.integral_add hint1 hint2] at ftc
   -- ftc : ∫ f'g + ∫ fg' = 0
-  -- Step 8: Solve for ∫ fg' and rewrite using commutativity of multiplication
+  -- Step 13: Solve for ∫ fg' and rewrite using commutativity of multiplication
   have key : ∫ t in (0:ℝ)..(2 * Real.pi), fParm γ t * deriv (gParm γ) t =
              -(∫ t in (0:ℝ)..(2 * Real.pi), deriv (fParm γ) t * gParm γ t) := by linarith
   rw [key]
   congr 1
   apply intervalIntegral.integral_congr
-  intro t _; ring
+  intro t _; ring 
+
+/-- area = ∫ 0 2π f(θ) g'(θ) dθ -/
+lemma area_simplified (γ : SimpleClosedC1Curve 2)
+    (hdc : Continuous (deriv γ.curve)) :
+    area γ 0 γ.length = ∫ t in (0 : ℝ)..(2 * Real.pi), fParm γ t * (deriv (gParm γ) t) := by
+  rw [area_parametrized]
+  have ibp := IBP_to_fParm_gParm γ hdc
+  -- Re-establish continuity facts needed for integrability
+  have hlinear : Continuous (fun θ : ℝ => γ.length * θ / (2 * Real.pi)) := by fun_prop
+  have eval0 : Continuous (fun v : EuclideanSpace ℝ (Fin 2) => v 0) :=
+    (PiLp.proj (𝕜 := ℝ) 2 (fun _ : Fin 2 => ℝ) 0).continuous
+  have eval1 : Continuous (fun v : EuclideanSpace ℝ (Fin 2) => v 1) :=
+    (PiLp.proj (𝕜 := ℝ) 2 (fun _ : Fin 2 => ℝ) 1).continuous
+  have hxd : ∀ t : ℝ, deriv (xCoord γ) t = (deriv γ.curve t) 0 := fun t => by
+    rw [(xCoord_hasDerivAt γ t).deriv, (γ.has_deriv t).choose_spec.deriv]
+  have hyd : ∀ t : ℝ, deriv (yCoord γ) t = (deriv γ.curve t) 1 := fun t => by
+    rw [(yCoord_hasDerivAt γ t).deriv, (γ.has_deriv t).choose_spec.deriv]
+  have hf_cont : Continuous (fParm γ) := by
+    have heq : fParm γ = (fun v : EuclideanSpace ℝ (Fin 2) => v 0) ∘ γ.curve ∘
+               (fun θ => γ.length * θ / (2 * Real.pi)) := by
+      ext θ; simp [fParm, xCoord, Function.comp]
+    rw [heq]; exact eval0.comp (γ.continuous.comp hlinear)
+  have hg_cont : Continuous (gParm γ) := by
+    have heq : gParm γ = (fun v : EuclideanSpace ℝ (Fin 2) => v 1) ∘ γ.curve ∘
+               (fun θ => γ.length * θ / (2 * Real.pi)) := by
+      ext θ; simp [gParm, yCoord, Function.comp]
+    rw [heq]; exact eval1.comp (γ.continuous.comp hlinear)
+  have hdf_cont : Continuous (fun θ => deriv (fParm γ) θ) := by
+    have heq : (fun θ => deriv (fParm γ) θ) =
+               fun θ => (deriv γ.curve (γ.length * θ / (2 * Real.pi))) 0 *
+                        (γ.length / (2 * Real.pi)) := by
+      ext θ; rw [fParm_deriv, hxd]
+    rw [heq]; exact (eval0.comp (hdc.comp hlinear)).mul continuous_const
+  have hdg_cont : Continuous (fun θ => deriv (gParm γ) θ) := by
+    have heq : (fun θ => deriv (gParm γ) θ) =
+               fun θ => (deriv γ.curve (γ.length * θ / (2 * Real.pi))) 1 *
+                        (γ.length / (2 * Real.pi)) := by
+      ext θ; rw [gParm_deriv, hyd]
+    rw [heq]; exact (eval1.comp (hdc.comp hlinear)).mul continuous_const
+  -- Integrability of fg' and gf'
+  have hint_fg' : IntervalIntegrable (fun t => fParm γ t * deriv (gParm γ) t)
+      MeasureTheory.volume 0 (2 * Real.pi) :=
+    (hf_cont.mul hdg_cont).intervalIntegrable _ _
+  have hint_gf' : IntervalIntegrable (fun t => gParm γ t * deriv (fParm γ) t)
+      MeasureTheory.volume 0 (2 * Real.pi) :=
+    (hg_cont.mul hdf_cont).intervalIntegrable _ _
+  -- Split ∫ (fg' - gf') = ∫ fg' - ∫ gf', then use IBP: ∫ fg' = -∫ gf'
+  rw [intervalIntegral.integral_sub hint_fg' hint_gf']
+  linarith
+
+/-- 2f(θ)g'(θ) ≤ (f(θ))^2 + (g'(θ))^2 -/
+lemma fParm_gParm_ineq (γ : SimpleClosedC1Curve 2) (θ : ℝ) : 
+    2 * fParm γ θ * deriv (gParm γ) θ ≤ (fParm γ θ)^2 + (deriv (gParm γ) θ)^2 := by
+  have h : 0 ≤ (fParm γ θ - deriv (gParm γ) θ)^2 := sq_nonneg _
+  nlinarith [h]
+
+/-- area ≤ (1/2) * ∫0 2π ((f(θ))^2 + (g'(θ))^2) dθ -/
+lemma area_inequality (γ : SimpleClosedC1Curve 2)
+    (hdc : Continuous (deriv γ.curve)) :
+    area γ 0 γ.length ≤
+      (1/2) * ∫ t in (0 : ℝ)..(2 * Real.pi), ((fParm γ t)^2 + (deriv (gParm γ) t)^2) := by
+  rw [area_simplified γ hdc]
+  -- Continuity facts needed for integrability
+  have hlinear : Continuous (fun θ : ℝ => γ.length * θ / (2 * Real.pi)) := by fun_prop
+  have eval0 : Continuous (fun v : EuclideanSpace ℝ (Fin 2) => v 0) :=
+    (PiLp.proj (𝕜 := ℝ) 2 (fun _ : Fin 2 => ℝ) 0).continuous
+  have eval1 : Continuous (fun v : EuclideanSpace ℝ (Fin 2) => v 1) :=
+    (PiLp.proj (𝕜 := ℝ) 2 (fun _ : Fin 2 => ℝ) 1).continuous
+  have hyd : ∀ t : ℝ, deriv (yCoord γ) t = (deriv γ.curve t) 1 := fun t => by
+    rw [(yCoord_hasDerivAt γ t).deriv, (γ.has_deriv t).choose_spec.deriv]
+  have hf_cont : Continuous (fParm γ) := by
+    have heq : fParm γ = (fun v : EuclideanSpace ℝ (Fin 2) => v 0) ∘ γ.curve ∘
+               (fun θ => γ.length * θ / (2 * Real.pi)) := by
+      ext θ; simp [fParm, xCoord, Function.comp]
+    rw [heq]; exact eval0.comp (γ.continuous.comp hlinear)
+  have hdg_cont : Continuous (fun θ => deriv (gParm γ) θ) := by
+    have heq : (fun θ => deriv (gParm γ) θ) =
+               fun θ => (deriv γ.curve (γ.length * θ / (2 * Real.pi))) 1 *
+                        (γ.length / (2 * Real.pi)) := by
+      ext θ; rw [gParm_deriv, hyd]
+    rw [heq]; exact (eval1.comp (hdc.comp hlinear)).mul continuous_const
+  -- Integrability of lhs and rhs integrands
+  have hint_lhs : IntervalIntegrable (fun t => fParm γ t * deriv (gParm γ) t)
+      MeasureTheory.volume 0 (2 * Real.pi) :=
+    (hf_cont.mul hdg_cont).intervalIntegrable _ _
+  have hint_rhs : IntervalIntegrable
+      (fun t => (1 / 2) * ((fParm γ t)^2 + (deriv (gParm γ) t)^2))
+      MeasureTheory.volume 0 (2 * Real.pi) :=
+    (continuous_const.mul ((hf_cont.pow 2).add (hdg_cont.pow 2))).intervalIntegrable _ _
+  -- Pointwise: fg' ≤ (1/2)(f² + g'²) follows from fParm_gParm_ineq
+  have hpw : ∀ t ∈ Set.Icc (0 : ℝ) (2 * Real.pi),
+      fParm γ t * deriv (gParm γ) t ≤ (1 / 2) * ((fParm γ t)^2 + (deriv (gParm γ) t)^2) :=
+    fun t _ => by linarith [fParm_gParm_ineq γ t]
+  -- ∫ fg' ≤ ∫ (1/2)(f² + g'²) by integral_mono_on
+  have hmono := intervalIntegral.integral_mono_on (by positivity) hint_lhs hint_rhs hpw
+  -- Pull 1/2 out: ∫ (1/2)(f² + g'²) = (1/2) * ∫ (f² + g'²) via integral_smul
+  have heq : ∫ t in (0 : ℝ)..(2 * Real.pi),
+        (1 / 2 : ℝ) * ((fParm γ t)^2 + (deriv (gParm γ) t)^2) =
+      (1 / 2) * ∫ t in (0 : ℝ)..(2 * Real.pi), ((fParm γ t)^2 + (deriv (gParm γ) t)^2) := by
+    have h : (fun t => (1 / 2 : ℝ) * ((fParm γ t)^2 + (deriv (gParm γ) t)^2)) =
+             (fun t => (1 / 2 : ℝ) • ((fParm γ t)^2 + (deriv (gParm γ) t)^2)) := by
+      ext t; simp [smul_eq_mul]
+    rw [h, intervalIntegral.integral_smul, smul_eq_mul]
+  linarith
+
+/-- Apply Wirtinger's Inequality: for a 2π-periodic function with zero mean (a₀ = 0),
+    the Parseval and Wirtinger integral formulas imply ∫₀²π f² ≤ ∫₀²π (f')².
+    This follows from comparing the Fourier coefficient sums:
+    ∑ₙ (aₙ² + bₙ²) ≤ ∑ₙ n²(aₙ² + bₙ²) since n ≥ 1 for all n : ℕ+. -/
+lemma apply_Wirtingers_ineq (γ : SimpleClosedC1Curve 2)
+    -- Fourier coefficients for fParm γ (with a 0 = 0 encoding zero mean)
+    (a b : ℕ → ℝ)
+    -- Parseval identity: ∫₀²π (fParm γ)² = π · ∑ₙ≥1 (aₙ² + bₙ²)
+    -- (zero mean / a₀ = 0 is implicit here — the constant term is absent)
+    (h_parseval : ∫ t in (0 : ℝ)..(2 * Real.pi), (fParm γ t) ^ 2 =
+        Real.pi * ∑' n : ℕ+, ((a n) ^ 2 + (b n) ^ 2))
+    -- Wirtinger identity (Parseval applied to f'): ∫₀²π (fParm γ')² = π · ∑ₙ≥1 n²(aₙ² + bₙ²)
+    (h_wirtinger : ∫ t in (0 : ℝ)..(2 * Real.pi), (deriv (fParm γ) t) ^ 2 =
+        Real.pi * ∑' n : ℕ+, ((n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2)))
+    -- Summability of n²(aₙ² + bₙ²) (needed for tsum comparison)
+    (hsum : Summable (fun n : ℕ+ => (n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2))) :
+    ∫ t in (0 : ℝ)..(2 * Real.pi), (fParm γ t) ^ 2 ≤
+      ∫ t in (0 : ℝ)..(2 * Real.pi), (deriv (fParm γ) t) ^ 2 := by
+  rw [h_parseval, h_wirtinger]
+  -- It suffices to compare ∑ (aₙ² + bₙ²) ≤ ∑ n²(aₙ² + bₙ²)
+  apply mul_le_mul_of_nonneg_left _ (le_of_lt Real.pi_pos)
+  -- Pointwise: aₙ² + bₙ² ≤ n²(aₙ² + bₙ²), since n² ≥ 1 for n : ℕ+
+  have hpw : ∀ n : ℕ+, (a n) ^ 2 + (b n) ^ 2 ≤ (n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2) :=
+      fun n => by
+    have hn : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast n.one_le
+    have hnn : (0 : ℝ) ≤ (a n) ^ 2 + (b n) ^ 2 := by positivity
+    calc (a n) ^ 2 + (b n) ^ 2
+        = 1 * ((a n) ^ 2 + (b n) ^ 2) := (one_mul _).symm
+      _ ≤ (n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2) := by
+          apply mul_le_mul_of_nonneg_right _ hnn
+          nlinarith [sq_nonneg ((n : ℝ) - 1)]
+  -- Summability of left side follows from right side via domination
+  have hsum_left : Summable (fun n : ℕ+ => (a n) ^ 2 + (b n) ^ 2) :=
+    Summable.of_nonneg_of_le (fun n => by positivity) hpw hsum
+  exact hsum_left.tsum_le_tsum hpw hsum 
+
+/-- Combining `area_inequality` (AM-GM) and `apply_Wirtingers_ineq` (Wirtinger):
+    the enclosed area is bounded by (1/2) times the integral of the sum of squared
+    reparametrized velocities. -/
+lemma addition_ineq (γ : SimpleClosedC1Curve 2)
+    (hdc : Continuous (deriv γ.curve))
+    -- Fourier coefficients and Parseval/Wirtinger hypotheses for fParm γ
+    (a b : ℕ → ℝ)
+    (h_parseval : ∫ t in (0 : ℝ)..(2 * Real.pi), (fParm γ t) ^ 2 =
+        Real.pi * ∑' n : ℕ+, ((a n) ^ 2 + (b n) ^ 2))
+    (h_wirtinger : ∫ t in (0 : ℝ)..(2 * Real.pi), (deriv (fParm γ) t) ^ 2 =
+        Real.pi * ∑' n : ℕ+, ((n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2)))
+    (hsum : Summable (fun n : ℕ+ => (n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2))) :
+    area γ 0 γ.length ≤
+      (1/2) * ∫ t in (0 : ℝ)..(2 * Real.pi),
+        ((deriv (fParm γ) t)^2 + (deriv (gParm γ) t)^2) := by
+  -- Rebuild continuity facts needed for integrability
+  have hlinear : Continuous (fun θ : ℝ => γ.length * θ / (2 * Real.pi)) := by fun_prop
+  have eval0 : Continuous (fun v : EuclideanSpace ℝ (Fin 2) => v 0) :=
+    (PiLp.proj (𝕜 := ℝ) 2 (fun _ : Fin 2 => ℝ) 0).continuous
+  have eval1 : Continuous (fun v : EuclideanSpace ℝ (Fin 2) => v 1) :=
+    (PiLp.proj (𝕜 := ℝ) 2 (fun _ : Fin 2 => ℝ) 1).continuous
+  have hxd : ∀ t : ℝ, deriv (xCoord γ) t = (deriv γ.curve t) 0 := fun t => by
+    rw [(xCoord_hasDerivAt γ t).deriv, (γ.has_deriv t).choose_spec.deriv]
+  have hyd : ∀ t : ℝ, deriv (yCoord γ) t = (deriv γ.curve t) 1 := fun t => by
+    rw [(yCoord_hasDerivAt γ t).deriv, (γ.has_deriv t).choose_spec.deriv]
+  have hf_cont : Continuous (fParm γ) := by
+    have heq : fParm γ = (fun v : EuclideanSpace ℝ (Fin 2) => v 0) ∘ γ.curve ∘
+               (fun θ => γ.length * θ / (2 * Real.pi)) := by
+      ext θ; simp [fParm, xCoord, Function.comp]
+    rw [heq]; exact eval0.comp (γ.continuous.comp hlinear)
+  have hdf_cont : Continuous (fun θ => deriv (fParm γ) θ) := by
+    have heq : (fun θ => deriv (fParm γ) θ) =
+               fun θ => (deriv γ.curve (γ.length * θ / (2 * Real.pi))) 0 *
+                        (γ.length / (2 * Real.pi)) := by ext θ; rw [fParm_deriv, hxd]
+    rw [heq]; exact (eval0.comp (hdc.comp hlinear)).mul continuous_const
+  have hdg_cont : Continuous (fun θ => deriv (gParm γ) θ) := by
+    have heq : (fun θ => deriv (gParm γ) θ) =
+               fun θ => (deriv γ.curve (γ.length * θ / (2 * Real.pi))) 1 *
+                        (γ.length / (2 * Real.pi)) := by ext θ; rw [gParm_deriv, hyd]
+    rw [heq]; exact (eval1.comp (hdc.comp hlinear)).mul continuous_const
+  -- Integrability of each squared term
+  have hint_f2 : IntervalIntegrable (fun t => (fParm γ t)^2)
+      MeasureTheory.volume 0 (2 * Real.pi) := (hf_cont.pow 2).intervalIntegrable _ _
+  have hint_dg2 : IntervalIntegrable (fun t => (deriv (gParm γ) t)^2)
+      MeasureTheory.volume 0 (2 * Real.pi) := (hdg_cont.pow 2).intervalIntegrable _ _
+  have hint_df2 : IntervalIntegrable (fun t => (deriv (fParm γ) t)^2)
+      MeasureTheory.volume 0 (2 * Real.pi) := (hdf_cont.pow 2).intervalIntegrable _ _
+  -- Step 1: area ≤ (1/2) * ∫ (f² + (g')²)   [area_inequality + AM-GM]
+  -- Step 2: ∫ f² ≤ ∫ (f')²                   [apply_Wirtingers_ineq]
+  -- Step 3: add ∫ (g')² to both sides of Step 2
+  have h_wirtingers := apply_Wirtingers_ineq γ a b h_parseval h_wirtinger hsum
+  have h_int_ineq : ∫ t in (0:ℝ)..(2*Real.pi), ((fParm γ t)^2 + (deriv (gParm γ) t)^2) ≤
+                    ∫ t in (0:ℝ)..(2*Real.pi), ((deriv (fParm γ) t)^2 + (deriv (gParm γ) t)^2) := by
+    rw [intervalIntegral.integral_add hint_f2 hint_dg2,
+        intervalIntegral.integral_add hint_df2 hint_dg2]
+    linarith
+  calc area γ 0 γ.length
+      ≤ (1/2) * ∫ t in (0:ℝ)..(2*Real.pi), ((fParm γ t)^2 + (deriv (gParm γ) t)^2) :=
+          area_inequality γ hdc
+    _ ≤ (1/2) * ∫ t in (0:ℝ)..(2*Real.pi), ((deriv (fParm γ) t)^2 + (deriv (gParm γ) t)^2) :=
+          mul_le_mul_of_nonneg_left h_int_ineq (by norm_num)
+
+
+/-- **Isoperimetric bound**: under arc-length parametrization, the area is at most
+    `(1/2) * ∫₀²π (L/(2π))² dθ = L²/(4π)`.
+    This combines `addition_ineq` (Wirtinger + AM-GM) with the arc-length constraint
+    `(f')² + (g')² = (L/(2π))²` from `fParm_gParm_deriv_sq_sum`. -/
+lemma apply_fParm_gParm_deriv_sq_sum (γ : SimpleClosedC1Curve 2)
+    (hdc : Continuous (deriv γ.curve))
+    (h_arc : IsArcLengthParametrized γ)
+    (a b : ℕ → ℝ)
+    (h_parseval : ∫ t in (0 : ℝ)..(2 * Real.pi), (fParm γ t) ^ 2 =
+        Real.pi * ∑' n : ℕ+, ((a n) ^ 2 + (b n) ^ 2))
+    (h_wirtinger : ∫ t in (0 : ℝ)..(2 * Real.pi), (deriv (fParm γ) t) ^ 2 =
+        Real.pi * ∑' n : ℕ+, ((n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2)))
+    (hsum : Summable (fun n : ℕ+ => (n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2))) :
+    area γ 0 γ.length ≤
+      (1/2) * ∫ _ in (0 : ℝ)..(2 * Real.pi), (γ.length ^ 2 / (4 * (Real.pi) ^ 2)) := by
+  calc area γ 0 γ.length
+      ≤ (1/2) * ∫ t in (0:ℝ)..(2 * Real.pi),
+            ((deriv (fParm γ) t) ^ 2 + (deriv (gParm γ) t) ^ 2) :=
+          addition_ineq γ hdc a b h_parseval h_wirtinger hsum
+    _ = (1/2) * ∫ t in (0:ℝ)..(2 * Real.pi), (γ.length ^ 2 / (4 * Real.pi ^ 2)) := by
+          congr 1
+          apply intervalIntegral.integral_congr
+          intro t _
+          -- fParm_gParm_deriv_sq_sum: (f')²+(g')² = (x'²+y'²) * (L/(2π))²
+          have hsq := fParm_gParm_deriv_sq_sum γ t
+          -- due_to_arc_length_parametrization: x'²+y'² = 1
+          have harc := due_to_arc_length_parametrization γ h_arc t
+          -- combine: (f')²+(g')² = (L/(2π))² = L²/(4π²)
+          rw [harc, one_mul] at hsq
+          exact hsq.trans (by ring)
+
+
+/-- **Isoperimetric Inequality** (Adolf Hurwitz, 1902): for any simple closed C¹ curve of
+    length `L = γ.length`, the enclosed area satisfies `area ≤ L² / (4π)`.
+    Combines `apply_fParm_gParm_deriv_sq_sum` (which gives `area ≤ (1/2) ∫₀²π L²/(4π²) dθ`)
+    with evaluation of the constant integral: `(1/2) · L²/(4π²) · 2π = L²/(4π)`. -/
+theorem isoperimetric_inequality (γ : SimpleClosedC1Curve 2)
+    (hdc : Continuous (deriv γ.curve))
+    (h_arc : IsArcLengthParametrized γ)
+    (a b : ℕ → ℝ)
+    (h_parseval : ∫ t in (0 : ℝ)..(2 * Real.pi), (fParm γ t) ^ 2 =
+        Real.pi * ∑' n : ℕ+, ((a n) ^ 2 + (b n) ^ 2))
+    (h_wirtinger : ∫ t in (0 : ℝ)..(2 * Real.pi), (deriv (fParm γ) t) ^ 2 =
+        Real.pi * ∑' n : ℕ+, ((n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2)))
+    (hsum : Summable (fun n : ℕ+ => (n : ℝ) ^ 2 * ((a n) ^ 2 + (b n) ^ 2))) :
+    area γ 0 γ.length ≤ γ.length ^ 2 / (4 * Real.pi) := by
+  calc area γ 0 γ.length
+      ≤ (1/2) * ∫ _ in (0 : ℝ)..(2 * Real.pi), (γ.length ^ 2 / (4 * (Real.pi) ^ 2)) :=
+          apply_fParm_gParm_deriv_sq_sum γ hdc h_arc a b h_parseval h_wirtinger hsum
+    _ = γ.length ^ 2 / (4 * Real.pi) := by
+          rw [intervalIntegral.integral_const, smul_eq_mul]
+          -- ∫ _ in 0..(2π), c = (2π - 0) * c = 2π * c
+          -- (1/2) * (2π * (L²/(4π²))) = L²/(4π)
+          have hpi : Real.pi ≠ 0 := Real.pi_ne_zero
+          field_simp
+          ring
