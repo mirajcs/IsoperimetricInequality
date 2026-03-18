@@ -15,7 +15,6 @@ A formalization of the Isoperimetric Inequality in Lean 4 using Mathlib. The pro
 }
 ```
 
-## GitHub configuration
 
 
 
