@@ -1,5 +1,7 @@
 # IsoperimetricInequality
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20258500.svg)](https://doi.org/10.5281/zenodo.20258500)
+
 A formalization of the Isoperimetric Inequality in Lean 4 using Mathlib. The proof proceeds via Fourier series: by expanding a closed curve's coordinate functions as Fourier series and applying Parseval's identity, one derives that among all simple closed curves of fixed perimeter, the circle encloses the maximum area.
 
 **Reference:**
@@ -11,7 +13,8 @@ A formalization of the Isoperimetric Inequality in Lean 4 using Mathlib. The pro
   eprint       = {2603.14663},
   archivePrefix = {arXiv},
   primaryClass = {},
-  url          = {https://arxiv.org/abs/2603.14663}
+  url          = {https://arxiv.org/abs/2603.14663},
+  doi          = {10.5281/zenodo.20258500}
 }
 ```
 
